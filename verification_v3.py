@@ -110,4 +110,41 @@ def verify_result(
             ):
                 return HOLD
 
-            pub = trusted.get("public_ke
+                        pub = trusted.get("public_key")
+            if not isinstance(pub, bytes) or len(pub) != 32:
+                return HOLD
+
+            if pub in seen_pubkeys:
+                return HOLD
+
+            if (
+                entry.get("source_revision") != revision
+                or entry.get("report_sha256") != digest
+                or entry.get("challenge") != challenge
+            ):
+                return HOLD
+
+            try:
+                signed_payload = {
+                    "source_id": source,
+                    "key_id": key_id,
+                    "source_revision": revision,
+                    "report_sha256": digest,
+                    "challenge": challenge,
+                }
+
+                Ed25519PublicKey.from_public_bytes(pub).verify(
+                    bytes.fromhex(signature),
+                    canonical_bytes(signed_payload),
+                )
+            except (InvalidSignature, ValueError, TypeError):
+                return HOLD
+
+            seen_sources.add(source)
+            seen_keys.add(key_id)
+            seen_pubkeys.add(pub)
+
+        return REVIEW_REQUIRED
+
+    except (ValueError, TypeError, UnicodeError, OverflowError):
+        return HOLD
