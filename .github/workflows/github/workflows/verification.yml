@@ -21,4 +21,4 @@ jobs:
           python-version: '3.11'
 
       - name: Run verification tests
-        run: python -m unittest -v test_verification.py
+        run: python -m unittest -v test_verification.py test_maniac_sync.py
