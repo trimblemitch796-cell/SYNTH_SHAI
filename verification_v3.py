@@ -110,7 +110,7 @@ def verify_result(
             ):
                 return HOLD
 
-                        pub = trusted.get("public_key")
+            pub = trusted.get("public_key")
             if not isinstance(pub, bytes) or len(pub) != 32:
                 return HOLD
 
