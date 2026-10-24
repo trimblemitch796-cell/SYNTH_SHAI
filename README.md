@@ -202,6 +202,7 @@ These are related workstreams and proposed applications, **not a claim that ever
 ```text
 SYNTH_SHAI/
 ├── README.md                         # Overall project explanation (this file)
+├── LICENSE                           # MIT License
 ├── shai_finance.py                   # Existing financial prototype on main
 ├── test_shai_finance.py              # Existing finance tests
 ├── VALIDATION.md                     # Existing financial validation report
@@ -288,3 +289,7 @@ SYNTH_SHAI is intended as a careful body of ongoing work: teachable, corrigible,
 **Project stewardship:** Human-led SYNTH_SHAI research.  
 **Last documentation review:** 25 October 2026.  
 **Status:** Offline prototypes + active research; real-world high-risk actions remain `144 HOLD`.
+
+## License
+
+SYNTH_SHAI is released under the [MIT License](LICENSE). Copyright (c) 2026 Mitch Trimble.
