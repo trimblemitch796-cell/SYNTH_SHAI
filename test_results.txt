@@ -1,0 +1,21 @@
+test_amount_mismatch (test_shai_finance.FinanceTests.test_amount_mismatch) ... ok
+test_bad_self_report (test_shai_finance.FinanceTests.test_bad_self_report) ... ok
+test_hardship_affordability (test_shai_finance.FinanceTests.test_hardship_affordability) ... ok
+test_interest_only_flag (test_shai_finance.FinanceTests.test_interest_only_flag) ... ok
+test_jobseeker_case (test_shai_finance.FinanceTests.test_jobseeker_case) ... ok
+test_missing_savings_not_zero (test_shai_finance.FinanceTests.test_missing_savings_not_zero) ... ok
+test_no_false_lender_approval (test_shai_finance.FinanceTests.test_no_false_lender_approval) ... ok
+test_partial_final_payment (test_shai_finance.FinanceTests.test_partial_final_payment) ... ok
+test_reconciled (test_shai_finance.FinanceTests.test_reconciled) ... ok
+test_reference_mismatch (test_shai_finance.FinanceTests.test_reference_mismatch) ... ok
+test_reject_nan (test_shai_finance.FinanceTests.test_reject_nan) ... ok
+test_reject_negative (test_shai_finance.FinanceTests.test_reject_negative) ... ok
+test_shortfall (test_shai_finance.FinanceTests.test_shortfall) ... ok
+test_unconfirmed_transfer (test_shai_finance.FinanceTests.test_unconfirmed_transfer) ... ok
+test_wellbeing_unknowns (test_shai_finance.FinanceTests.test_wellbeing_unknowns) ... ok
+test_zero_rate_schedule (test_shai_finance.FinanceTests.test_zero_rate_schedule) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.001s
+
+OK

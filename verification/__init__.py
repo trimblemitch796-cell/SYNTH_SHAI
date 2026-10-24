@@ -1,3 +1,5 @@
+"""SYNTH_SHAI verification and safety checks package."""
+
 """SYNTH_SHAI evidence-presence gate (not an approval mechanism)."""
 from collections.abc import Mapping
 
