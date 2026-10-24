@@ -6,7 +6,7 @@
 Tests cover: budget margin, liquidity coverage, unknown savings, shortfall, negative/nonfinite input, zero-interest debt, non-amortising loan, final partial payment, pending/mismatched/matched transaction flags, unavailable wellbeing indicators, invalid self-reports, hardship affordability, no inferred lender approval.
 
 ## Example checked
-An illustrative Australian fortnightly budget income AUD 833.70, essentials AUD 585, contracted debt AUD 50 and optional spending AUD 100 leaves AUD 98.70. The specific case is purely synthetic. AUD 1,000 accessible savings divided by 585 * 26 / 12 monthly essentials yields approximately 0.79 months coverage. Debt payment scenarios assume monthly fixed nominal rates, monthly compounding, no fees or policy changes.
+An illustrative Australian fortnightly budget income AUD 833.70, essentials AUD 585, contracted debt AUD 50 and optional spending AUD 100 leaves AUD 98.70. The built-in demo in `shai_finance.py` uses optional spending AUD 0, so it prints AUD 198.70. The specific case is purely synthetic. AUD 1,000 accessible savings divided by 585 * 26 / 12 monthly essentials yields approximately 0.79 months coverage. Debt payment scenarios assume monthly fixed nominal rates, monthly compounding, no fees or policy changes.
 
 ## 555000 Evidence
 ASIC MoneySmart financial hardship page (31 Aug 2026) states creditors must consider hardship assistance requests and borrowers should seek affordable arrangements. ASIC MoneySmart general/personal financial advice page (18 June 2026) distinguishes factual information from regulated recommendations. Free professional financial counselling is available through the National Debt Helpline.
