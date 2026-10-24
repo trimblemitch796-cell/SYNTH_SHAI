@@ -132,7 +132,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **38 tests, all passing**: 16 finance, 7 basic verification and 15 V3.1 tests.
+Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **48 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1 and 10 V3.1 bridge tests.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -210,6 +210,9 @@ SYNTH_SHAI/
 ├── verification_v3.py                # V3 authenticated evidence gate (merged from V3.1 work)
 ├── verification_v3_1.py              # V3.1 strict-scope evidence + replay gate
 ├── test_verification_v3_1.py         # V3.1 CATHARSIS tests
+├── shai_v31_bridge.py                # V3.1 offline evidence bridge (CLI)
+├── test_shai_v31_bridge.py           # V3.1 bridge adversarial tests
+├── docs/V31_BRIDGE_README.md         # Bridge usage and security boundaries
 ├── requirements.txt                  # Python dependency (cryptography)
 ├── .gitignore                        # Ignores caches and local files
 ├── .github/workflows/verification.yml       # General CI workflow
@@ -232,17 +235,17 @@ On a working copy of the **main** branch, install Python 3.11 and then:
 
 ```bash
 python -m pip install -r requirements.txt
-python -m unittest discover -v
+python3 -m unittest discover -v
 python shai_finance.py
 ```
 
 You can also run the financial tests directly:
 
 ```bash
-python -m unittest -v test_shai_finance.py
+python3 -m unittest -v test_shai_finance.py
 ```
 
-The V3.1 tests are now on `main` and run with the commands above (or directly with `python -m unittest -v test_verification_v3_1.py`). Treat dependency installation as a software supply-chain action; pin and audit packages before deployment. No real-world connections are needed for the described offline tests.
+The V3.1 tests are now on `main` and run with the commands above (or directly with `python3 -m unittest -v test_verification_v3_1.py`). Treat dependency installation as a software supply-chain action; pin and audit packages before deployment. No real-world connections are needed for the described offline tests.
 
 ## 9. Evidence standard and release gates
 
