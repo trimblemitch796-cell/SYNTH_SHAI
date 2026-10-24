@@ -20,5 +20,8 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt
+
       - name: Run verification tests
         run: python -m unittest discover -v
