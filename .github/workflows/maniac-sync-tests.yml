@@ -35,4 +35,5 @@ jobs:
         run: |
           python -m py_compile maniac_sync.py
           python -m py_compile test_maniac_sync.py
-          python -m py_compile verification.py
+          python -m py_compile maniac_sync_v1_2.py
+          python -m unittest -v test_maniac_sync_v1_2.py
