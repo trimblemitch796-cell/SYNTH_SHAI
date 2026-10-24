@@ -1,0 +1,190 @@
+
+"""MANIAC_SYNC_V1.2: offline fault-bound recovery proof of concept.
+Not hardware-safe. Secret keys are test fixtures, not human identity proof.
+No actuation interfaces exist.
+"""
+from dataclasses import dataclass
+import hashlib, hmac, json, math, secrets, time
+
+HOLD, MONITOR, SAFE_LOCK = "HOLD", "MONITOR", "SAFE_LOCK"
+SOURCES = frozenset(("SYNTH_SHAI", "USHAI"))
+
+def mac(fields, key):
+    data = json.dumps(fields, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    return hmac.new(key, data, hashlib.sha256).hexdigest()
+
+@dataclass(frozen=True)
+class Message:
+    source: str
+    sequence: int
+    timestamp: float
+    state: str
+    signature: str
+
+    @classmethod
+    def sign(cls, source, sequence, timestamp, state, key):
+        d = dict(source=source, sequence=sequence, timestamp=timestamp, state=state)
+        return cls(**d, signature=mac(d, key))
+
+    def fields(self):
+        return dict(source=self.source, sequence=self.sequence,
+                    timestamp=self.timestamp, state=self.state)
+
+@dataclass(frozen=True)
+class Approval:
+    fault_id: str
+    challenge: str
+    issued_at: float
+    expires_at: float
+    action: str
+    signature: str
+
+    @classmethod
+    def sign(cls, fault_id, challenge, issued_at, expires_at, key):
+        d = dict(fault_id=fault_id, challenge=challenge, issued_at=issued_at,
+                 expires_at=expires_at, action="recover-to-monitor")
+        return cls(**d, signature=mac(d, key))
+
+    def fields(self):
+        return dict(fault_id=self.fault_id, challenge=self.challenge,
+                    issued_at=self.issued_at, expires_at=self.expires_at,
+                    action=self.action)
+
+class Supervisor:
+    def __init__(self, source_keys, approval_key, *, timeout=5, clock=None):
+        if set(source_keys) != SOURCES or any(type(k) is not bytes or len(k) < 16 for k in source_keys.values()):
+            raise ValueError("Require two source keys")
+        if len(set(source_keys.values())) != 2 or type(approval_key) is not bytes or len(approval_key) < 16 or approval_key in source_keys.values():
+            raise ValueError("Require distinct approval key")
+        if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Invalid timeout")
+
+        self._keys, self._approval_key = dict(source_keys), approval_key
+        self._clock = clock or time.time
+        self.timeout = timeout
+        self.state, self.latched, self.physical_actuation = HOLD, True, False
+        self.fault_id = secrets.token_hex(16)
+        self.fault_time = self._clock()
+        self.challenge = None
+        self.last_sequence = {}
+        self.last_heartbeat = {}
+        self.component_states = {}
+        self.fresh_sources = set()
+        self.used_challenges = set()
+        self.audit = []
+
+    def hold(self, reason):
+        self.state, self.latched, self.physical_actuation = HOLD, True, False
+        self.fault_id = secrets.token_hex(16)
+        self.fault_time = self._clock()
+        self.challenge = None
+        self.fresh_sources.clear()
+        self.audit.append(("144 HOLD", reason, self.fault_id))
+        return False
+
+    def receive(self, msg):
+        now = self._clock()
+
+        if not isinstance(msg, Message) or msg.source not in SOURCES:
+            return self.hold("unknown source")
+
+        try:
+            valid = hmac.compare_digest(
+                msg.signature,
+                mac(msg.fields(), self._keys[msg.source])
+            )
+        except (TypeError, ValueError, OverflowError):
+            return self.hold("malformed message")
+
+        if not valid:
+            return self.hold("unauthenticated message")
+
+        if (
+            type(msg.sequence) is not int or msg.sequence < 0 or
+            type(msg.timestamp) not in (int, float) or
+            not math.isfinite(msg.timestamp) or
+            msg.state != HOLD or
+            msg.timestamp < self.fault_time or
+            msg.timestamp > now + 1 or
+            now - msg.timestamp > self.timeout or
+            msg.sequence <= self.last_sequence.get(msg.source, -1)
+        ):
+            return self.hold("stale, conflicting or replayed message")
+
+        self.last_sequence[msg.source] = msg.sequence
+        self.last_heartbeat[msg.source] = now
+        self.component_states[msg.source] = msg.state
+        self.fresh_sources.add(msg.source)
+        return True
+
+    def health_ok(self):
+        now = self._clock()
+        return (
+            self.fresh_sources == SOURCES and
+            all(
+                s in self.last_heartbeat and
+                now - self.last_heartbeat[s] <= self.timeout and
+                self.component_states.get(s) == HOLD
+                for s in SOURCES
+            )
+        )
+
+    def request_challenge(self):
+        if not self.latched or not self.health_ok():
+            self.hold("no fresh post-fault evidence")
+            return None
+
+        self.challenge = secrets.token_hex(16)
+        return {
+            "fault_id": self.fault_id,
+            "challenge": self.challenge,
+            "issued_at": self._clock(),
+        }
+
+    def recover(self, approval):
+        now = self._clock()
+
+        if not isinstance(approval, Approval):
+            return self.hold("missing approval")
+
+        try:
+            valid = hmac.compare_digest(
+                approval.signature,
+                mac(approval.fields(), self._approval_key)
+            )
+        except (TypeError, ValueError, OverflowError):
+            return self.hold("malformed approval")
+
+        if not valid or approval.action != "recover-to-monitor":
+            return self.hold("unauthenticated approval")
+
+        if (
+            not self.latched or self.challenge is None or
+            approval.fault_id != self.fault_id or
+            approval.challenge != self.challenge or
+            approval.challenge in self.used_challenges or
+            type(approval.issued_at) not in (float, int) or
+            type(approval.expires_at) not in (float, int) or
+            not math.isfinite(approval.issued_at) or
+            not math.isfinite(approval.expires_at) or
+            approval.issued_at < self.fault_time or
+            approval.issued_at > now or
+            not now <= approval.expires_at <= approval.issued_at + 60 or
+            not self.health_ok()
+        ):
+            return self.hold("wrong fault, stale approval or stale evidence")
+
+        self.used_challenges.add(self.challenge)
+        self.challenge = None
+        self.latched, self.state = False, MONITOR
+
+        self.audit.append((
+            "444000",
+            "simulated MONITOR recovery",
+            self.fault_id
+        ))
+        return True
+
+    def shutdown(self):
+        self.hold("shutdown")
+        self.state = SAFE_LOCK
