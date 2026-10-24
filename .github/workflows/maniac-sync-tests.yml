@@ -1,0 +1,38 @@
+
+name: MANIAC_SYNC_V1 Tests
+
+on:
+  push:
+    branches:
+      - maniac-sync-v1
+  pull_request:
+    branches:
+      - maniac-sync-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maniac-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run SYNTH_SHAI and MANIAC tests
+        run: |
+          python -m unittest -v test_verification.py test_maniac_sync.py
+
+      - name: Verify Python syntax
+        run: |
+          python -m py_compile maniac_sync.py
+          python -m py_compile test_maniac_sync.py
+          python -m py_compile verification.py
