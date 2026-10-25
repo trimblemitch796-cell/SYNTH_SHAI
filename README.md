@@ -129,7 +129,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **121 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 10 V3.1 bridge, 19 MANIAC supervisor, 8 USHAI Catharsis, 14 MANIAC monitor, 14 MANIAC evidence, 9 MANIAC hardening and 9 MANIAC simulation tests.
+Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **147 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 10 V3.1 bridge, 19 MANIAC supervisor, 8 USHAI Catharsis, 14 MANIAC monitor, 14 MANIAC evidence, 9 MANIAC hardening, 10 MANIAC simulation, 9 TRIANGULATE and 16 VERIFY tests.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -227,6 +227,10 @@ SYNTH_SHAI/
 ├── test_maniac_evidence.py           # CHECK EVIDENCE tests
 ├── maniac/simulation.py              # MANIAC_SIMULATION fault injector (python3 -m maniac.simulation)
 ├── test_maniac_simulation.py         # Simulation tests
+├── maniac/triangulate.py             # 555000 TRIANGULATE: 2+ independent agreeing sources
+├── test_maniac_triangulate.py        # TRIANGULATE tests
+├── maniac/verify.py                  # 444000 VERIFY / HUMAN APPROVAL (CONSEQUENCE REVIEW)
+├── test_maniac_verify.py             # VERIFY + human-decision tests
 ├── ushai_catharsis.py                # USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1) by Mitch Trimble
 ├── test_ushai_catharsis.py           # USHAI Catharsis tests
 ├── docs/MANIAC_SUPERVISOR.md         # Supervisor + USHAI plain-English guide

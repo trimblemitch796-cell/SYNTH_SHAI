@@ -120,6 +120,17 @@ class Supervisor:
                   Gate.AUDIT.value, Gate.BALANCE.value]
         return Result(rid, decision, reason, audit)
 
+    def review(self, request, monitor_snapshot, evidence_result, triangulation):
+        """Full 444000 VERIFY / CONSEQUENCE REVIEW: runs evaluate() and then
+        collects reasons from EVERY layer (USHAI, monitor, evidence,
+        triangulate, supervisor). Returns a maniac.verify.VerifyResult."""
+        from maniac.verify import consequence_review
+        from ushai_catharsis import USHAICatharsis
+        ushai = USHAICatharsis()
+        ushai.assess(request.get("ethical_evidence") if isinstance(request, dict) else None)
+        result = self.evaluate(request, monitor_snapshot, evidence_result)
+        return consequence_review(ushai, monitor_snapshot, evidence_result, triangulation, result)
+
     def recover(self, held, new_request):
         """1301133 REPAIR + 666000 RECOVERY: re-evaluate only with a fresh
         request id that has never been held. Never re-uses the held one."""

@@ -129,7 +129,7 @@ python3 -m maniac.simulation     # prints a table; exit code 1 if any scenario f
 | baseline (clean) | HUMAN_REVIEW (never approval) |
 | dead_heartbeat, watchdog_timeout | 144 HOLD (monitor) |
 | stuck_sensor (same value 5 times in a row), out_of_range, nan_reading, inf_reading, stale_reading | 144 HOLD (222 OBSERVE RAW) |
-| contradiction, single_source | 144 HOLD (555000 TRIANGULATE) |
+| contradiction, single_source, same_type_sources | 144 HOLD (555000 TRIANGULATE) |
 | missing_consent, expired_consent, action_outside_consent | 144 HOLD (444000 VERIFY / HUMAN APPROVAL) |
 | forged_provenance, tampered_provenance, replayed_evidence | 144 HOLD (777000 RECEIVE EVIDENCE) |
 | malformed_input, several_faults | 144 HOLD |
@@ -138,3 +138,28 @@ python3 -m maniac.simulation     # prints a table; exit code 1 if any scenario f
 **Stuck sensor:** a sensor reading may include a `history` list of recent values. If the last 5 values
 are all exactly the same, CHECK EVIDENCE gives `144 HOLD`. `run_all()` returns a report for each scenario
 with its name, the injected fault, the expected and actual outcome, the reason and pass/fail.
+
+## 555000 TRIANGULATE (`maniac/triangulate.py`)
+
+> Offline simulation only. PASS is not approval.
+
+`triangulate(readings)` needs **at least 2 independent sources that agree within 5 %**. The tolerance is shared with CHECK EVIDENCE.
+**Independent** means every reading has its own `source_id` **and** its own `source_type`, for example a camera
+and a lidar. Two cameras are not independent. It returns `PASS` with the agreed value (the median) and a
+`confidence`: 1.0 means the sources agree perfectly, and 0.0 means they are right at the 5 % limit. Disagreement, too few
+sources, a shared type or id, a bad number, or malformed input gives `144 HOLD` with reasons.
+
+## 444000 VERIFY / HUMAN APPROVAL (`maniac/verify.py`) - CONSEQUENCE REVIEW
+
+`consequence_review(ushai, monitor_snapshot, evidence_result, triangulation, supervisor_result=None)`
+checks **every** layer and collects **all** their reasons, so a human sees the full list when several faults happen at once.
+
+- **RISK / ERROR FOUND** gives `144 HOLD`. The next steps are `1301133 BUILD / REPAIR / REFRAME`, then `666000 RECOVERY`.
+- **EVIDENCE SUFFICIENT** gives `HUMAN_REVIEW`. This is never an approval, and `approval_granted` is always False.
+- Both branches list `222000 RE-OBSERVE`, `111000 COMPARE / LEARN`, `999000 AUDIT` and `Δ BALANCE` as
+  **pending**. They will be built in step 6.
+
+Only `result.record_human_decision(operator_id, decision, reason)` can approve. `operator_id` and `reason`
+must be non-empty text, and `decision` must be exactly `"APPROVED"` or `"REJECTED"`. True, "yes" and "approved" are all refused.
+A HOLD can't be approved, and only one decision can be recorded.
+`Supervisor.review(request, monitor_snapshot, evidence_result, triangulation)` runs all of this in one call.

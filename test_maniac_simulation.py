@@ -13,7 +13,7 @@ EXPECTED_CAUSE = {
     "action_outside_consent": "not inside human consent",
     "forged_provenance": "provenance", "tampered_provenance": "provenance",
     "replayed_evidence": "provenance", "malformed_input": "no sensor readings",
-    "repeated_fault": "SAFE_LOCK", "several_faults": "overheat",
+    "same_type_sources": "not independent", "repeated_fault": "SAFE_LOCK", "several_faults": "overheat",
 }
 
 
@@ -46,6 +46,11 @@ class TestSimulation(unittest.TestCase):
 
     def test_required_faults_are_covered(self):
         self.assertEqual(set(EXPECTED_CAUSE) | {"baseline"}, {s[0] for s in SCENARIOS})
+
+    def test_several_faults_lists_every_reason(self):
+        reason = self.report["several_faults"]["reason"]
+        for word in ("overheat", "NaN", "not inside human consent", "555000 TRIANGULATE"):
+            self.assertIn(word, reason)
 
     def test_report_fields(self):
         for r in self.report.values():
