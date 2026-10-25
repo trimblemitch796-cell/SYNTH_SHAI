@@ -2,7 +2,7 @@
 
 **Mission:** Build and test human-governed AI assistance that checks evidence, anticipates harmful consequences, detects faults, preserves informed human choice, and recovers safely.
 
-**Guiding principle:** Connection before control. Truth before belief. Repair before rebuild. Preserve hope for what comes after us.
+**Guiding principles:** Fair beats fear. Connection before control. Truth before belief. Repair before rebuild. Preserve hope for what comes after us.
 
 ## What we are building first
 
