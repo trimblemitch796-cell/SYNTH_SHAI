@@ -92,3 +92,22 @@ from maniac.monitor import Monitor
 m = Monitor(clock, ["camera", "lidar"])
 m.heartbeat("camera"); m.heartbeat("lidar"); m.kick()   # -> State.MONITOR
 ```
+
+## CHECK EVIDENCE (`maniac/evidence.py`)
+
+> Offline simulation only. It controls no hardware. `PASS` is **not** approval. It only means
+> the evidence may go on to `444000 VERIFY / HUMAN APPROVAL`. `approval_granted` is always False.
+
+`check_evidence(bundle, clock)` returns `overall` (`144 HOLD` or `PASS`), a list of
+`(gate, reason)` pairs and an audit trail. It runs all four checks and collects every problem:
+
+| Check | Gate | HOLD when |
+| --- | --- | --- |
+| Sensor validity | `222 OBSERVE RAW` | A value, range or timestamp is not a real number (text, NaN, inf, True/False). The value is outside its range. The reading is older than 2 s or from the future |
+| Contradictions | `555000 TRIANGULATE` | Fewer than two valid sources for a quantity, or sources disagree by more than 5 % |
+| Permissions | `444000 VERIFY / HUMAN APPROVAL` | Consent is missing, has no `expires_at`, or has expired. The action isn't explicitly listed (deny by default) |
+| Provenance | `777000 RECEIVE EVIDENCE` | The V3.1 bridge (`shai_v31_bridge.py`) doesn't say exactly `REVIEW_REQUIRED`. That includes forged, tampered or replayed evidence |
+
+Malformed bundles, unknown or missing fields, and any crash also give `144 HOLD`.
+The supervisor can use it like this: `supervisor.evaluate(request, evidence_result=check_evidence(...))`. Anything but a
+real `PASS` result gives `144 HOLD`.
