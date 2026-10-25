@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import hashlib
 import json
+import math
 
 HOLD = "144 HOLD"
 HUMAN_REVIEW = "HUMAN_REVIEW"
@@ -125,7 +126,7 @@ class Supervisor:
                           HOLD, "recover() only applies to a held result",
                           [Gate.REPAIR.value, Gate.HOLD.value])
         nid = new_request.get("request_id") if isinstance(new_request, dict) else None
-        if nid is None or nid == held.request_id or nid in self._held_ids:
+        if not isinstance(nid, str) or not nid.strip() or nid == held.request_id or nid in self._held_ids:
             return Result(nid, HOLD, "recovery needs a new request id and fresh evidence",
                           [Gate.REPAIR.value, Gate.RECOVERY.value, Gate.HOLD.value])
         result = self.evaluate(new_request)
@@ -153,6 +154,8 @@ class Supervisor:
                 fail("missing field(s): %s" % ", ".join(sorted(missing)))
 
             audit.append(Gate.IDENTIFY.value)
+            if not isinstance(req["request_id"], str) or not req["request_id"].strip():
+                fail("request id must be a non-empty string")
             action = req["action"]
             if not isinstance(action, str) or not action:
                 fail("action must be a non-empty string")
@@ -185,10 +188,14 @@ class Supervisor:
                     why = monitor_snapshot.get("reason") if isinstance(monitor_snapshot, dict) else "bad snapshot"
                     fail("monitor state %s: %s" % (state, why))
             now = self.clock()
+            if type(now) not in (int, float) or not math.isfinite(now):
+                fail("invalid clock")
             beats = req["heartbeats"]
             if not isinstance(beats, list) or not beats:
                 fail("no heartbeat")
-            last = max(float(b) for b in beats)
+            if any(type(b) not in (int, float) or not math.isfinite(b) for b in beats):
+                fail("invalid heartbeat")
+            last = max(beats)
             if last > now or now - last > self.heartbeat_timeout:
                 fail("watchdog: heartbeat missed or from the future")
             if req.get("faults"):
@@ -199,14 +206,19 @@ class Supervisor:
                 fail("action %r is outside human consent" % action)
             caps = consent.get("limits", {})
             for name, value in limits.items():
-                if name not in caps or float(value) > float(caps[name]):
+                if (name not in caps or type(value) not in (int, float)
+                        or type(caps[name]) not in (int, float)
+                        or not math.isfinite(value) or not math.isfinite(caps[name])
+                        or value < 0 or caps[name] < 0 or value > caps[name]):
                     fail("limit %r outside consent" % name)
 
             # CHECK EVIDENCE: sensor validity
             values, sources = [], set()
             for s in sensors:
-                v, lo, hi = float(s["value"]), float(s["min"]), float(s["max"])
-                if not lo <= v <= hi or v != v:
+                if not isinstance(s, dict) or any(type(s.get(k)) not in (int, float) or not math.isfinite(s[k]) for k in ("value", "min", "max")):
+                    fail("invalid sensor measurement")
+                v, lo, hi = s["value"], s["min"], s["max"]
+                if not lo <= v <= hi:
                     fail("sensor %r out of range" % s["source"])
                 values.append(v)
                 sources.add(s["source"])
