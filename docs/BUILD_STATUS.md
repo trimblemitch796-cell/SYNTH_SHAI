@@ -20,18 +20,20 @@ This is an **offline software-prototype** progress record, not a declaration tha
 - PR #18: MANIAC–USHAI–V25 TRI5 synthetic integration tests merged.
 - PR #19: V3.1 concurrent / durable replay regression tests and release evidence matrix merged.
 - PR #20: clean-up (docs consistency, read-only result objects, de-duplicated VERIFY reasons) merged.
-- Step 6 (`maniac-recover-learn-balance` branch): 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE and `run_loop`. Proposed, not merged at this review.
+- PR #22: step 6, which covers 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE and `run_loop`, merged.
+- PR #23: Super Tool V1 offline ASK / CHECK / BUILD starter merged.
+- Step 7 (`shai-digital-twin` branch): SHAI digital twin + ELO-ECTRIC power model. Software only, illustrative numbers, **not hardware-ready**. Proposed, not merged at this review.
 
 ## Current test count
-`python3 -m unittest discover -v`: **203 tests, all passing** (local run on `maniac-recover-learn-balance`, 25 October 2026).
-`python3 -m maniac.simulation`: 26/26 scenarios pass.
+`python3 -m unittest discover -v`: **243 tests, all passing** (local run on `shai-digital-twin`, 25 October 2026).
+`python3 -m maniac.simulation`: 33/33 scenarios pass.
 
 ## Next step
-With step 6, every gate in Mitch's flow exists as offline code. Suggested next work, for Mitch to decide: an independent outside review of the full loop, persistent audit storage, and wiring V25 TRI5 into `run_loop`.
+With step 6, every gate in Mitch's flow exists as offline code. Step 7 adds a simulated SHAI body and power model that can only move through the full loop plus a human approval. Suggested next work, for Mitch to decide: an independent outside review (see issue #21), persistent audit storage, wiring V25 TRI5 into `run_loop`, and deciding whether a clean human REJECTED counts as BALANCED.
 
 ## Outstanding release gates (144 HOLD)
 - [~] Assess concurrency, duplicate requests, replay and SQLite persistence across restarts. Local single-database cases are tested in PR #19. Cross-device replay is not established.
-- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 26 scenarios, including full-loop recovery). USHAI is covered only by its fixed baseline input.
+- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 33 scenarios, including full-loop recovery and SHAI twin). USHAI is covered only by its fixed baseline input.
 - [ ] Review trust-key provisioning, source independence and approval/consent provenance.
 - [ ] Review public repo and git history for secrets, private data and licensing.
 - [ ] Obtain independent security and hazard review before consequential applications.

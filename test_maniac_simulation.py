@@ -15,7 +15,10 @@ EXPECTED_CAUSE = {
     "replayed_evidence": "provenance", "malformed_input": "no sensor readings",
     "same_type_sources": "not independent", "repeated_fault": "SAFE_LOCK",
     "loop_recovery_replayed": "new V3.1 challenge", "loop_recovery_stale": "not newer",
-    "loop_no_recovery": "NaN", "loop_reobserve_mismatch": "world does not match", "several_faults": "overheat",
+    "loop_no_recovery": "NaN",
+    "twin_unapproved": "no human APPROVED", "twin_over_limit": "outside limit",
+    "twin_low_battery": "LOW_BATTERY", "twin_overheat": "SAFE_LOCK",
+    "twin_sensor_dropout": "SENSOR_DROPOUT", "twin_replayed_approval": "different request", "loop_reobserve_mismatch": "world does not match", "several_faults": "overheat",
 }
 
 
@@ -33,7 +36,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_every_fault_holds_or_locks(self):
         for name, r in self.report.items():
-            if name in ("baseline", "loop_clean", "loop_recovery_fresh"):
+            if name in ("baseline", "loop_clean", "loop_recovery_fresh", "twin_approved_motion"):
                 continue
             with self.subTest(scenario=name):
                 self.assertIn(r["actual"], (HOLD, SAFE_LOCK))
@@ -47,7 +50,8 @@ class TestSimulation(unittest.TestCase):
                 self.assertIn(word, self.report[name]["reason"])
 
     def test_required_faults_are_covered(self):
-        self.assertEqual(set(EXPECTED_CAUSE) | {"baseline", "loop_clean", "loop_recovery_fresh"},
+        self.assertEqual(set(EXPECTED_CAUSE) | {"baseline", "loop_clean", "loop_recovery_fresh",
+                                                "twin_approved_motion"},
                          {s[0] for s in SCENARIOS})
 
     def test_clean_and_recovered_loops_are_balanced(self):

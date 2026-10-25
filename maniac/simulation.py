@@ -91,6 +91,7 @@ class Scenario:
         self.supervisor = Supervisor(clock=self.clock)
         self.db_path = db_path
         self.loop = None          # set by a loop scenario to run the whole loop
+        self.twin_case = None     # set by a SHAI twin scenario
 
     def run_full_loop(self):
         """Whole loop: chain -> (HOLD -> REPAIR -> RECOVERY) -> 222000 -> 111000 -> 999000 -> Δ."""
@@ -105,6 +106,8 @@ class Scenario:
     def run(self):
         """Monitor -> CHECK EVIDENCE -> 555000 TRIANGULATE -> 444000 VERIFY.
         Returns (outcome, reason). The reason lists EVERY layer's problems."""
+        if self.twin_case is not None:
+            return self.twin_case(self)
         if self.loop is not None:
             return self.run_full_loop()
         if self.monitor.snapshot()["state"] == SAFE_LOCK:
@@ -194,6 +197,45 @@ def _held_then_recover(s, fresh_challenge, fresh_time):
               "fresh": readings_from_bundle(new)}     # the world after the repair
 
 
+# ---- SHAI digital twin scenarios (software only, no hardware) ---------
+MOVED = "MOVED"
+GOOD_ETHICS = EthicalEvidence(True, True, True, False, False, True)
+
+
+def twin(kind):
+    """Build a twin scenario. Returns the injector used in SCENARIOS."""
+    def inject(s):
+        def run(s):
+            from shai.twin import ShaiTwin            # imported here: shai imports maniac
+            kw = {"soc": 0.10} if kind == "low_battery" else {}
+            kw.update({"temp_c": 65.0} if kind == "overheat" else {})
+            t = ShaiTwin(seed=7, **kw)
+            before = t.joint_angles
+            rid = "twin-" + kind
+            target = 200 if kind == "over_limit" else 30
+            plan = {"request_id": rid, "moves": {"elbow_left": target}, "duration_s": 2.0}
+            approval = {"request_id": rid, "operator_id": "mitch", "decision": "APPROVED",
+                        "reason": "small elbow test"}
+            if kind == "unapproved":
+                approval = None
+            if kind == "replayed_approval":
+                approval = dict(approval, request_id="twin-some-other-request")
+            if kind == "dropout":
+                t.inject_sensor_dropout("lidar", after_steps=5)
+            prov = {"envelope": signed_envelope("maniac-twin-challenge-" + kind),
+                    "db_path": s.db_path}
+            r = t.request_motion(plan, approval, prov, GOOD_ETHICS)
+            assert r.approval_granted is False
+            moved = t.joint_angles != before
+            if r.outcome != MOVED and kind != "dropout":
+                assert not moved, "joint moved without full approval"
+            if kind == "dropout":
+                assert t.safe_stops, "no safe stop after dropout"
+            return r.outcome, "; ".join(r.reasons) or "moved %s" % t.joint_angles["elbow_left"]
+        s.twin_case = run
+    return inject
+
+
 SCENARIOS = [
     ("baseline", "none (clean)", lambda s: None, REVIEW),
     ("dead_heartbeat", "camera heartbeat stops", dead_heartbeat, HOLD),
@@ -225,6 +267,13 @@ SCENARIOS = [
      lambda s: _held_then_recover(s, True, lambda s: NOW - 0.5), HOLD),
     ("loop_no_recovery", "NaN, no repair attempted",
      lambda s: (cam(s).update(value=float("nan")), loop_clean(s)), HOLD),
+    ("twin_approved_motion", "SHAI twin: approved 30° elbow move", twin("approved"), MOVED),
+    ("twin_unapproved", "SHAI twin: no human approval", twin("unapproved"), HOLD),
+    ("twin_over_limit", "SHAI twin: elbow to 200° (max 140)", twin("over_limit"), HOLD),
+    ("twin_low_battery", "SHAI twin: battery at 10%", twin("low_battery"), HOLD),
+    ("twin_overheat", "SHAI twin: pack at 65 °C", twin("overheat"), SAFE_LOCK),
+    ("twin_sensor_dropout", "SHAI twin: lidar drops out mid-motion", twin("dropout"), HOLD),
+    ("twin_replayed_approval", "SHAI twin: approval for another request", twin("replayed_approval"), HOLD),
     ("loop_reobserve_mismatch", "world moved after decision (30.0 seen)",
      lambda s: (loop_clean(s), s.loop.update(fresh=[
          {"source_id": "camera", "source_type": "camera", "value": 30.0},
@@ -250,9 +299,9 @@ def run_all():
 
 def main():
     report = run_all()
-    print("%-24s %-40s %-13s %-13s %s" % ("SCENARIO", "INJECTED FAULT", "EXPECTED", "ACTUAL", "RESULT"))
+    print("%-24s %-42s %-13s %-13s %s" % ("SCENARIO", "INJECTED FAULT", "EXPECTED", "ACTUAL", "RESULT"))
     for r in report:
-        print("%-24s %-40s %-13s %-13s %s" % (r["name"], r["fault"], r["expected"],
+        print("%-24s %-42s %-13s %-13s %s" % (r["name"], r["fault"], r["expected"],
                                               r["actual"], "pass" if r["passed"] else "FAIL"))
     failed = [r for r in report if not r["passed"]]
     print("\n%d/%d scenarios passed. Offline simulation only - no hardware." %
