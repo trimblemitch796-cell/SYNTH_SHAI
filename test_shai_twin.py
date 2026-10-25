@@ -61,6 +61,51 @@ class TestMotionGate(Base):
         self.assertTrue(r.balance.human_decision.approved)
         self.assertLess(t.power["energy_wh"], 2000)
 
+    def test_consent_must_cover_entire_motion(self):
+        t = ShaiTwin(consent_seconds=0.05)
+        before = t.power
+        self.assertNoMove(t, self.ask(t, secs=2.0), "consent")
+        self.assertEqual(t.power, before)
+
+    def test_consent_rechecked_before_each_motion_step(self):
+        t = ShaiTwin()
+        original_tick = t._tick
+        ticks = 0
+
+        def expire_during_motion():
+            nonlocal ticks
+            ticks += 1
+            original_tick()
+            if ticks == 2:  # initial request tick, then first movement tick
+                t._consent_until = t._clock()
+
+        t._tick = expire_during_motion
+        result = self.ask(t)
+        self.assertEqual(result.outcome, HOLD)
+        self.assertTrue(result.moved)
+        self.assertAlmostEqual(t.joint_angles["elbow_left"], 1.5)
+        self.assertEqual(len(t.safe_stops), 1)
+        self.assertIn("consent", result.reasons[0])
+
+    def test_short_motion_uses_requested_duration(self):
+        t = ShaiTwin(consent_seconds=0.05)
+        started = t._clock()
+        result = self.ask(t, moves={"elbow_left": 1}, secs=0.04)
+        self.assertEqual(result.outcome, MOVED)
+        self.assertAlmostEqual(t._clock() - started, 0.04)
+
+    def test_motion_can_finish_at_consent_deadline(self):
+        t = ShaiTwin(consent_seconds=2.0)
+        result = self.ask(t, secs=2.0)
+        self.assertEqual(result.outcome, MOVED)
+        self.assertEqual(t._clock(), t._consent_until)
+
+    def test_invalid_consent_duration_rejected(self):
+        for value in (float("nan"), float("inf"), -float("inf"), True, "1", None, -1, 10 ** 400):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    ShaiTwin(consent_seconds=value)
+
     def assertNoMove(self, t, r, word, outcome=HOLD):
         self.assertEqual(r.outcome, outcome)
         self.assertFalse(r.moved)

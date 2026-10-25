@@ -16,7 +16,7 @@
 
 A joint moves **only if all** of these are true:
 
-1. The plan is valid, and every joint stays inside its angle, speed and torque limits.
+1. The plan is valid, every joint stays inside its angle, speed and torque limits, and the planned duration fits inside the current consent window.
 2. The battery has enough energy **above the safe-stop reserve**.
 3. MANIAC `run_loop()` ends **BALANCED** with `HUMAN_REVIEW`. That means USHAI, the monitor, CHECK EVIDENCE with freshly signed V3.1
    provenance, TRIANGULATE, VERIFY, RE-OBSERVE, LEARN and AUDIT all passed.
@@ -26,7 +26,7 @@ Anything else gives `144 HOLD`, or `SAFE_LOCK`, and **nothing moves**. Request i
 different request is refused. The joint angles you can read are a copy, and the read-only properties can't be set. Note that
 Python can't truly hide `_private` attributes. This is a code-review rule, not a security boundary.
 
-The motion runs in 0.1 s steps. If the monitor leaves `MONITOR` mid-motion (for example a sensor drops out), the twin does a
+The motion runs in steps no longer than 0.1 s and rechecks consent before each step; expiry stops further movement. If the monitor leaves `MONITOR` mid-motion (for example a sensor drops out), the twin does a
 **safe stop**: joints halt where they are, using energy from the reserve. Then it returns HOLD, or SAFE_LOCK for a critical fault.
 
 ## ELO-ECTRIC power model (`shai/power.py`)
@@ -39,6 +39,8 @@ The motion runs in 0.1 s steps. If the monitor leaves `MONITOR` mid-motion (for 
 | Low battery | below 15 % charge gives a `LOW_BATTERY` fault, which means 144 HOLD |
 | Heat | +0.5 °C per Wh used, cooling 1 % of the gap to 25 °C ambient per second |
 | Over-temperature | above 60 °C gives a critical `OVER_TEMP` fault, which means SAFE_LOCK |
+
+Power-model numeric inputs must be finite, non-boolean numbers. Invalid task energy is refused without changing the pack; invalid configuration, cooling and reserve inputs raise an error rather than poisoning simulated state.
 
 ## Simulation scenarios
 
