@@ -42,6 +42,17 @@ Local verification on 25 October 2026 passed **279 tests** and **33/33 simulatio
 ## Next step
 Review the completed offline changes, then obtain independent outside review (see issue #21). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
 
+## Public beta audit (issue #9)
+- **Audited:** commit `ef1ffd2` on 25 October 2026. The audit was read-only.
+- **Secrets:** gitleaks found nothing across all 83 commits on every branch and PR. Pattern searches found no keys, tokens, passwords, `.env` files, phone numbers or addresses in any file.
+- **Files:** no large or binary files. One old `test_results.txt` (finance test output only) was removed in `445b660`.
+- **CI:** read-only token permissions, no `pull_request_target`, no secrets, and test failures fail the job. Actions are now pinned to commit SHAs, and Dependabot config has been added.
+- **Still pending, because Mitch must change these GitHub settings himself:**
+  - [ ] branch protection on `main`
+  - [ ] private vulnerability reporting
+  - [ ] Dependabot alerts and security updates
+  - [ ] commit email privacy: the personal email appears as the author on past commits
+
 ## Outstanding release gates (144 HOLD)
 - [ ] Complete the broader concurrency and replay assessment. Local single-database duplicate/reopen cases are tested in PR #19; the optional audit store adds local transaction and stale-writer checks. Cross-device replay and distributed audit integrity are not established.
 - [x] MANIAC + V3.1 evidence-bridge synthetic integration scenarios exist (`python3 -m maniac.simulation`, including full-loop recovery and SHAI twin). Re-run on the reviewed revision; USHAI is covered only by its fixed baseline input.
