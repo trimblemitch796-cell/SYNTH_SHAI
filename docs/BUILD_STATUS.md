@@ -19,20 +19,19 @@ This is an **offline software-prototype** progress record, not a declaration tha
 - PR #17: offline V25 TRI5 child-safeguarding advisory gate merged.
 - PR #18: MANIAC–USHAI–V25 TRI5 synthetic integration tests merged.
 - PR #19: V3.1 concurrent / durable replay regression tests and release evidence matrix merged.
-- Clean-up (`cleanup-oct25` branch): docs consistency, read-only result objects, de-duplicated VERIFY reasons. Proposed, not merged at this review.
+- PR #20: clean-up (docs consistency, read-only result objects, de-duplicated VERIFY reasons) merged.
+- Step 6 (`maniac-recover-learn-balance` branch): 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE and `run_loop`. Proposed, not merged at this review.
 
 ## Current test count
-`python3 -m unittest discover -v`: **173 tests, all passing** (local run on `cleanup-oct25`, 25 October 2026).
-`python3 -m maniac.simulation`: 20/20 scenarios pass.
+`python3 -m unittest discover -v`: **203 tests, all passing** (local run on `maniac-recover-learn-balance`, 25 October 2026).
+`python3 -m maniac.simulation`: 26/26 scenarios pass.
 
-## Next step: 6
-- `666000 RECOVERY`: a full recovery path after 144 HOLD and 1301133 BUILD / REPAIR / REFRAME, needing fresh evidence and a new request id.
-- `111000 COMPARE / LEARN`: compare the outcome with what was expected and record lessons. Learning never grants authority.
-- `Δ BALANCE`: close the loop on both branches, together with `222000 RE-OBSERVE` and `999000 AUDIT`, which are pending today.
+## Next step
+With step 6, every gate in Mitch's flow exists as offline code. Suggested next work, for Mitch to decide: an independent outside review of the full loop, persistent audit storage, and wiring V25 TRI5 into `run_loop`.
 
 ## Outstanding release gates (144 HOLD)
 - [~] Assess concurrency, duplicate requests, replay and SQLite persistence across restarts. Local single-database cases are tested in PR #19. Cross-device replay is not established.
-- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 20 scenarios). USHAI is covered only by its fixed baseline input.
+- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 26 scenarios, including full-loop recovery). USHAI is covered only by its fixed baseline input.
 - [ ] Review trust-key provisioning, source independence and approval/consent provenance.
 - [ ] Review public repo and git history for secrets, private data and licensing.
 - [ ] Obtain independent security and hazard review before consequential applications.

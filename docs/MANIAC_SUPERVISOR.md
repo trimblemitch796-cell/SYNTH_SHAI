@@ -176,3 +176,31 @@ problem, for example a monitor fault that the supervisor repeats, VERIFY lists i
 [V25 TRI5](V25_TRI5.md) (`v25_tri5.layered_review`) is an **extra conservative safeguarding gate that runs after** the
 MANIAC/USHAI result. It can add `144 HOLD`, `HUMAN_REVIEW` or `URGENT_HUMAN_HELP`, but it never overrides a MANIAC HOLD and
 never approves anything. Nothing in MANIAC changes V25 TRI5's logic.
+
+## Step 6: closing the loop
+
+> Offline simulation only. It controls no hardware. Nothing here approves anything, and every result has `approval_granted` set to `False`.
+
+`maniac.loop.run_loop(...)` runs Mitch's whole flow and writes every gate decision to the audit chain:
+
+```
+monitor -> CHECK EVIDENCE -> 555000 TRIANGULATE -> 444000 VERIFY / HUMAN APPROVAL
+   RISK / ERROR FOUND  -> 144 HOLD -> 1301133 BUILD / REPAIR / REFRAME -> 666000 RECOVERY
+   EVIDENCE SUFFICIENT -> HUMAN REVIEW (optional recorded human decision)
+both -> 222000 RE-OBSERVE -> 111000 COMPARE / LEARN -> 999000 AUDIT -> Δ BALANCE
+```
+
+| Gate | File | What it does |
+| --- | --- | --- |
+| `1301133 BUILD / REPAIR / REFRAME` + `666000 RECOVERY` | `maniac/recovery.py` | Recovery from a HOLD needs a repair note with `operator_id` and `reason`, a **new** request id, readings **newer** than the held ones, and a **new** V3.1 challenge. The monitor must not be in SAFE_LOCK (that needs `human_reset()` first). It then re-runs the full chain. The best possible result is `HUMAN_REVIEW`. |
+| `222000 RE-OBSERVE` | `maniac/observe.py` | After the decision, it takes a fresh triangulated observation. If it doesn't match the expected value within 5 %, the result is HOLD. |
+| `111000 COMPARE / LEARN` | `maniac/learn.py` | Writes each lesson to an append-only JSON-lines log, which `.gitignore` excludes. A HOLD reason seen 2 times is flagged for review and tightens the matching setting to 80 %. **Learning can only make things stricter**: settings are always `min(current, learned)`, and a corrupt log line is itself flagged. |
+| `999000 AUDIT` | `maniac/audit.py` | A SHA-256 hash chain. `verify_chain()` detects edits, deletions and re-ordering. |
+| `Δ BALANCE` | `maniac/balance.py` | A frozen `BalanceResult` with the outcome, gates passed, reasons and audit head hash. The status is `BALANCED` (outcome `HUMAN_REVIEW`) only when every gate completed cleanly and the chain verifies. Anything else is `UNBALANCED`, which means `144 HOLD`. |
+
+A human `REJECTED` decision, an invalid human decision, no recovery after a HOLD, a failed
+re-observation or a lesson-log failure all give `UNBALANCED`, which means `144 HOLD`. `maniac/chain.py` holds
+the shared monitor → evidence → triangulate → verify call used by recovery, the loop and the simulation.
+
+`python3 -m maniac.simulation` now also runs six full-loop scenarios: a clean loop, recovery with fresh evidence,
+recovery that re-uses the old challenge, recovery with old readings, no recovery, and a re-observation mismatch.

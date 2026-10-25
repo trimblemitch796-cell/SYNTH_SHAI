@@ -117,7 +117,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 
 **Repository:** [trimblemitch796-cell/SYNTH_SHAI](https://github.com/trimblemitch796-cell/SYNTH_SHAI)
 
-**Branches:** `main` holds all merged work: V3.1 (PR #2), the bridge (PR #5), MANIAC steps 1–5 and hardening (PRs #11–#16), V25 TRI5 (PRs #17–#18) and V3.1 concurrent replay tests (PR #19). `maniac-sync-v1` is an unmerged research branch. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the current milestone record.
+**Branches:** `main` holds all merged work: V3.1 (PR #2), the bridge (PR #5), MANIAC steps 1–5 and hardening (PRs #11–#16), clean-up (PR #20), V25 TRI5 (PRs #17–#18) and V3.1 concurrent replay tests (PR #19). `maniac-sync-v1` is an unmerged research branch. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the current milestone record.
 
 ### 5.1 Finance prototype and basic evidence gate
 
@@ -129,7 +129,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` (25 October 2026) runs **173 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 4 V3.1 concurrent replay, 10 V3.1 bridge, 8 USHAI Catharsis, 19 MANIAC supervisor, 9 MANIAC hardening, 14 MANIAC monitor, 14 MANIAC evidence, 9 TRIANGULATE, 21 VERIFY, 10 MANIAC simulation, 8 V25 TRI5 and 9 V25 TRI5 integration tests.
+Running `python3 -m unittest discover -v` (25 October 2026) runs **203 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 4 V3.1 concurrent replay, 10 V3.1 bridge, 8 USHAI Catharsis, 19 MANIAC supervisor, 9 MANIAC hardening, 14 MANIAC monitor, 14 MANIAC evidence, 9 TRIANGULATE, 21 VERIFY, 29 MANIAC loop (RECOVERY / RE-OBSERVE / LEARN / AUDIT / BALANCE), 11 MANIAC simulation, 8 V25 TRI5 and 9 V25 TRI5 integration tests.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -146,7 +146,7 @@ Merged into `main` on 25 October 2026 (PR #2), `verification_v3.py` implements a
 These modules are **offline simulations that control no hardware**. They only return `144 HOLD`, `HUMAN_REVIEW` (or for V25 TRI5 `URGENT_HUMAN_HELP`), and `approval_granted` is always False.
 
 - `ushai_catharsis.py`: USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1), written by Mitch Trimble.
-- `maniac/`: supervisor, MONITOR SYSTEM, CHECK EVIDENCE, 555000 TRIANGULATE, 444000 VERIFY / HUMAN APPROVAL and MANIAC_SIMULATION (`python3 -m maniac.simulation`). See [docs/MANIAC_SUPERVISOR.md](docs/MANIAC_SUPERVISOR.md).
+- `maniac/`: supervisor, MONITOR SYSTEM, CHECK EVIDENCE, 555000 TRIANGULATE, 444000 VERIFY / HUMAN APPROVAL, 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE (`run_loop`) and MANIAC_SIMULATION (`python3 -m maniac.simulation`). See [docs/MANIAC_SUPERVISOR.md](docs/MANIAC_SUPERVISOR.md).
 - `v25_tri5.py`: V25 TRI5 child-safeguarding advisory gate, an extra conservative layer after MANIAC/USHAI that never overrides a HOLD. See [docs/V25_TRI5.md](docs/V25_TRI5.md).
 - Release evidence and boundaries: [docs/V31_RELEASE_VERIFICATION.md](docs/V31_RELEASE_VERIFICATION.md).
 
@@ -232,10 +232,17 @@ SYNTH_SHAI/
 │   ├── evidence.py                   # CHECK EVIDENCE: sensors, contradictions, consent, provenance
 │   ├── triangulate.py                # 555000 TRIANGULATE
 │   ├── verify.py                     # 444000 VERIFY / HUMAN APPROVAL (CONSEQUENCE REVIEW)
+│   ├── chain.py                      # monitor -> evidence -> triangulate -> verify in one call
+│   ├── recovery.py                   # 1301133 BUILD / REPAIR / REFRAME + 666000 RECOVERY
+│   ├── observe.py                    # 222000 RE-OBSERVE
+│   ├── learn.py                      # 111000 COMPARE / LEARN (append-only, only ever stricter)
+│   ├── audit.py                      # 999000 AUDIT hash chain
+│   ├── balance.py                    # Δ BALANCE
+│   ├── loop.py                       # run_loop(): the whole flow end to end
 │   └── simulation.py                 # MANIAC_SIMULATION fault injector
 ├── test_maniac_supervisor.py, test_maniac_hardening.py, test_maniac_monitor.py,
 │   test_maniac_evidence.py, test_maniac_triangulate.py, test_maniac_verify.py,
-│   test_maniac_simulation.py
+│   test_maniac_simulation.py, test_maniac_loop.py
 ├── v25_tri5.py                       # V25 TRI5 child-safeguarding advisory gate
 ├── test_v25_tri5.py, test_v25_tri5_integration.py
 │
