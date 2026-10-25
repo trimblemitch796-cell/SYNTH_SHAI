@@ -89,13 +89,15 @@ class Supervisor:
         self._held_ids = set()                  # request ids that ended in HOLD
 
     # ---------------------------------------------------------------
-    def evaluate(self, request, monitor_snapshot=None):
+    def evaluate(self, request, monitor_snapshot=None, evidence_result=None):
         """monitor_snapshot (optional): Monitor.snapshot(); anything but
-        state MONITOR means 144 HOLD."""
+        state MONITOR means 144 HOLD.
+        evidence_result (optional): maniac.evidence.check_evidence() result;
+        anything but overall PASS means 144 HOLD."""
         audit = []
         rid = request.get("request_id") if isinstance(request, dict) else None
         try:
-            reason = self._walk(request, audit, monitor_snapshot)
+            reason = self._walk(request, audit, monitor_snapshot, evidence_result)
             if reason is None:
                 audit.append(CONSEQUENCE_REVIEW + ": EVIDENCE SUFFICIENT")
                 audit.append(Gate.VERIFY.value)
@@ -133,7 +135,7 @@ class Supervisor:
         return result
 
     # ---------------------------------------------------------------
-    def _walk(self, req, audit, monitor_snapshot=None):
+    def _walk(self, req, audit, monitor_snapshot=None, evidence_result=None):
         """Return None if everything passed, else the HOLD reason."""
         def fail(msg):
             raise HoldError(msg)
@@ -193,6 +195,13 @@ class Supervisor:
                 fail("watchdog: heartbeat missed or from the future")
             if req.get("faults"):
                 fail("active fault(s): %s" % req["faults"])
+
+            # CHECK EVIDENCE module (optional): must be a real PASS result
+            if evidence_result is not None:
+                from maniac.evidence import EvidenceResult, PASS
+                if not isinstance(evidence_result, EvidenceResult) or evidence_result.overall != PASS:
+                    why = getattr(evidence_result, "reasons", "bad evidence result")
+                    fail("CHECK EVIDENCE: %s" % (why,))
 
             # CHECK EVIDENCE: consent / permissions
             if action not in consent.get("allowed_actions", []):
