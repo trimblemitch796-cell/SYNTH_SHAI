@@ -147,4 +147,5 @@ def _run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
     steps.append(("999000 AUDIT", intact, [] if intact else [("999000 AUDIT", "chain broken")]))
 
     # Δ BALANCE
-    return close_loop(decision, steps, chain, decision_record, safety_decision), chain
+    return close_loop(decision, steps, chain, decision_record, safety_decision,
+                      verify_result=result), chain

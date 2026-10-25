@@ -12,6 +12,7 @@ Combines every layer and collects ALL their reasons (not just the first):
 Only record_human_decision() - an explicit human choice - can approve.
 """
 from dataclasses import dataclass, field
+import weakref
 
 from maniac.evidence import EvidenceResult, PASS as EVIDENCE_PASS
 from maniac.triangulate import TriangulationResult, PASS as TRI_PASS
@@ -24,6 +25,26 @@ REVIEW_NEXT_STEPS = ["HUMAN REVIEW"]
 # Follow-up gates on BOTH branches - built in step 6, pending for now.
 PENDING_GATES = ["222000 RE-OBSERVE", "111000 COMPARE / LEARN", "999000 AUDIT", "Δ BALANCE"]
 HUMAN_CHOICES = ("APPROVED", "REJECTED")
+
+
+# Results issued by the real 444000 VERIFY path (consequence_review). Anything
+# else - e.g. a hand-built VerifyResult("HUMAN_REVIEW") - is not genuine, cannot
+# record a human decision and cannot reach Δ BALANCE. In-process guard against
+# skipped gates; not a cryptographic seal against code that edits this module.
+_GENUINE = {}
+
+
+def _issue(*args):
+    result = VerifyResult(*args)
+    key = id(result)
+    _GENUINE[key] = weakref.ref(result, lambda _ref, k=key: _GENUINE.pop(k, None))
+    return result
+
+
+def is_genuine(result):
+    """True only for a VerifyResult produced by consequence_review()."""
+    ref = _GENUINE.get(id(result))
+    return ref is not None and ref() is result
 
 
 @dataclass(frozen=True)
@@ -55,6 +76,8 @@ class VerifyResult:
         Raises ValueError for anything that isn't clearly valid."""
         if self.decision != HUMAN_REVIEW:
             raise ValueError("a 144 HOLD cannot be approved; repair and re-verify first")
+        if not is_genuine(self):
+            raise ValueError("not issued by 444000 VERIFY; run the gates first")
         if self.human_decision is not None:
             raise ValueError("a human decision was already recorded")
         for name, value in (("operator_id", operator_id), ("reason", reason)):
@@ -112,5 +135,5 @@ def consequence_review(ushai, monitor_snapshot, evidence_result, triangulation,
         if pair not in unique:
             unique.append(pair)
     if unique:
-        return VerifyResult(HOLD, unique, list(HOLD_NEXT_STEPS))
-    return VerifyResult(HUMAN_REVIEW, [], list(REVIEW_NEXT_STEPS))
+        return _issue(HOLD, unique, list(HOLD_NEXT_STEPS))
+    return _issue(HUMAN_REVIEW, [], list(REVIEW_NEXT_STEPS))
