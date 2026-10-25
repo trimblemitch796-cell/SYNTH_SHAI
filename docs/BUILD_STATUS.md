@@ -42,6 +42,17 @@ Local verification of the security-hardening candidate on 25 October 2026 passed
 ## Next step
 Review the release/security hardening and exact-head CI, enable/confirm private reporting and branch protection, then obtain independent outside review (see issue #21 and [the release checklist](RELEASE_SECURITY_CHECKLIST.md)). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
 
+## Public beta audit (issue #9)
+- **Audited:** commit `ef1ffd2` on 25 October 2026. The audit was read-only, and it complements [the release checklist](RELEASE_SECURITY_CHECKLIST.md).
+- **Secrets:** gitleaks found nothing across all 83 commits on every branch and PR. Pattern searches found no keys, tokens, passwords, `.env` files, phone numbers or addresses in any file.
+- **Files:** no large or binary files. One old `test_results.txt` (finance test output only) was removed in `445b660`.
+- **CI:** read-only token permissions, no `pull_request_target`, no secrets, and test failures fail the job. Actions were SHA-pinned in PR #26. A weekly Dependabot config is added in PR #27.
+- **GitHub settings** (read via the API on 25 October 2026):
+  - [x] branch protection on `main`: requires a PR and 4 checks
+  - [x] private vulnerability reporting: enabled
+  - [ ] Dependabot alerts and security updates: still off, and Mitch must turn them on
+  - [ ] commit email privacy: the personal email appears as the author on past commits, and Mitch can hide it for future commits
+
 ## Outstanding release gates (144 HOLD)
 - [ ] Complete the broader concurrency and replay assessment. Local single-database duplicate/reopen cases are tested in PR #19; the optional audit store adds local transaction and stale-writer checks. Cross-device replay and distributed audit integrity are not established.
 - [x] MANIAC + V3.1 evidence-bridge synthetic integration scenarios exist (`python3 -m maniac.simulation`, including full-loop recovery and SHAI twin). Re-run on the reviewed revision; USHAI is covered only by its fixed baseline input.
