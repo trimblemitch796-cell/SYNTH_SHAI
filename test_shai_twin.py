@@ -5,7 +5,7 @@ import unittest
 from maniac.simulation import signed_envelope
 from maniac.triangulate import readings_from_bundle, triangulate
 from maniac.evidence import check_evidence
-from shai.twin import ShaiTwin, JOINTS, HEIGHT_CM, MOVED, HOLD, SAFE_LOCK
+from shai.twin import ShaiTwin, approval_for, plan_digest, JOINTS, HEIGHT_CM, MOVED, HOLD, SAFE_LOCK
 from ushai_catharsis import EthicalEvidence
 
 GOOD = EthicalEvidence(True, True, True, False, False, True)
@@ -30,8 +30,7 @@ class Base(unittest.TestCase):
             ethics=GOOD, prov="fresh"):
         plan = {"request_id": rid, "moves": moves or {"elbow_left": 30}, "duration_s": secs}
         if approval is None and approve:
-            approval = {"request_id": rid, "operator_id": "mitch", "decision": "APPROVED",
-                        "reason": "test"}
+            approval = approval_for(plan, "mitch", "APPROVED", "test")
         return twin.request_motion(plan, approval, self.prov() if prov == "fresh" else prov, ethics)
 
 
@@ -274,6 +273,68 @@ class TestReplayStoreIsTrustedConfig(Base):
             with self.subTest(bad=bad):
                 with self.assertRaises(ValueError):
                     ShaiTwin(replay_db=bad)
+
+
+
+class TestApprovalBoundToExactPlan(Base):
+    """Review finding (HIGH): approval must authorise one exact plan, once."""
+
+    def plan(self, rid="r1", moves=None, secs=2.0):
+        return {"request_id": rid, "moves": moves or {"elbow_left": 30}, "duration_s": secs}
+
+    def go(self, t, plan, approval):
+        return t.request_motion(plan, approval, self.prov(), GOOD)
+
+    def test_small_elbow_approval_cannot_authorise_bigger_plan(self):
+        small = self.plan()
+        appr = approval_for(small, "mitch", "APPROVED", "small elbow move")
+        t = self.twin()
+        big = self.plan(moves={"elbow_left": 60, "knee_right": 20}, secs=4.0)
+        r = self.go(t, big, appr)
+        self.assertEqual(r.outcome, HOLD)
+        self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
+        self.assertEqual(self.go(t, small, appr).outcome, MOVED)   # the approved plan still works
+
+    def test_held_request_id_and_approval_cannot_be_reused_for_new_plan(self):
+        t = self.twin()
+        bad = self.plan(moves={"elbow_left": 999})
+        appr = approval_for(bad, "mitch", "APPROVED", "x")
+        self.assertEqual(self.go(t, bad, appr).outcome, HOLD)
+        r = self.go(t, self.plan(moves={"elbow_left": 60}), appr)
+        self.assertEqual(r.outcome, HOLD)
+        self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
+
+    def test_id_only_approval_holds(self):
+        t = self.twin()
+        appr = {"request_id": "r1", "operator_id": "mitch", "decision": "APPROVED", "reason": "x"}
+        self.assertEqual(self.go(t, self.plan(), appr).outcome, HOLD)
+        self.assertEqual(t.joint_angles["elbow_left"], 0.0)
+
+    def test_tampered_or_extra_approval_fields_hold(self):
+        p = self.plan()
+        good = approval_for(p, "mitch", "APPROVED", "x")
+        for bad in (dict(good, plan_sha256="0" * 64), dict(good, plan_sha256=None),
+                    dict(good, extra=1), dict(good, request_id="r2")):
+            with self.subTest(bad=bad):
+                t = self.twin()
+                self.assertEqual(self.go(t, p, bad).outcome, HOLD)
+                self.assertEqual(t.joint_angles["elbow_left"], 0.0)
+
+    def test_approval_is_single_use(self):
+        t = self.twin()
+        p = self.plan()
+        appr = approval_for(p, "mitch", "APPROVED", "x")
+        self.assertEqual(self.go(t, p, appr).outcome, MOVED)
+        before = t.joint_angles
+        r = self.go(t, p, appr)                                  # replay same approval
+        self.assertEqual(r.outcome, HOLD)
+        self.assertEqual(t.joint_angles, before)
+
+    def test_digest_is_canonical(self):
+        a = {"request_id": "r", "moves": {"elbow_left": 1, "knee_left": 2}, "duration_s": 2.0}
+        b = {"duration_s": 2.0, "moves": {"knee_left": 2, "elbow_left": 1}, "request_id": "r"}
+        self.assertEqual(plan_digest(a), plan_digest(b))
+        self.assertNotEqual(plan_digest(a), plan_digest(dict(a, duration_s=3.0)))
 
 
 if __name__ == "__main__":
