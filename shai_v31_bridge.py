@@ -5,7 +5,7 @@ No ChatGPT API, network traffic, actuation, payment, or authorization.
 import argparse
 import json
 from pathlib import Path
-from verification_v3 import HOLD, REVIEW_REQUIRED, sha256_text
+from verification_v3 import HOLD, REVIEW_REQUIRED
 from verification_v3_1 import verify_once
 
 

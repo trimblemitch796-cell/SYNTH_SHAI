@@ -28,10 +28,10 @@ The conceptual **Triple Helix** is:
 Conceptual flow:
 
 ```text
-HUMAN INTENT & CONSENT
+HUMAN (purpose, values, consent)
         |
         v
-AI COGNITION / PROPOSAL
+SYNTH_SHAI AI cognition engine
         |
         v
 USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1)
@@ -41,9 +41,9 @@ USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1)
 -> 333000 RECORD -> 777000 RECEIVE EVIDENCE -> 555000 TRIANGULATE -> 888000 CHECK LOOP
         |
         v
-CONSEQUENCE REVIEW (MANIAC monitor + evidence checks)
-   RISK / ERROR FOUND  -> 144 HOLD -> 1301133 REPAIR -> 666000 RECOVERY
-   EVIDENCE SUFFICIENT -> 444000 VERIFY -> HUMAN REVIEW
+CONSEQUENCE REVIEW (MANIAC monitor + CHECK EVIDENCE + TRIANGULATE)
+   RISK / ERROR FOUND  -> 144 HOLD -> 1301133 BUILD / REPAIR / REFRAME -> 666000 RECOVERY
+   EVIDENCE SUFFICIENT -> 444000 VERIFY / HUMAN APPROVAL -> HUMAN REVIEW
         |
         v
 222000 RE-OBSERVE -> 111000 COMPARE / LEARN -> 999000 AUDIT -> Δ BALANCE
@@ -99,16 +99,16 @@ These project codes are **human-readable development labels**, not secret keys, 
 | `222` | OBSERVE RAW |
 | `333` | DEFINE PROBLEM |
 | `333000` | RECORD |
-| `111000` | COMPARE / LEARN |
-| `222000` | RE-OBSERVE |
-| `555000` | TRIANGULATE |
-| `666000` | RECOVERY |
 | `777000` | RECEIVE EVIDENCE |
+| `555000` | TRIANGULATE |
 | `888000` | CHECK LOOP |
-| `999000` | AUDIT |
 | `144` | HOLD |
 | `1301133` | BUILD / REPAIR / REFRAME |
+| `666000` | RECOVERY |
 | `444000` | VERIFY / HUMAN APPROVAL |
+| `222000` | RE-OBSERVE |
+| `111000` | COMPARE / LEARN |
+| `999000` | AUDIT |
 | `Δ` | BALANCE |
 
 **User-defined symbolic memory sequence:** `130113011130133013330130013000`. This string is a project reference only; it does not authenticate a user or implement persistent machine memory.
@@ -117,9 +117,9 @@ These project codes are **human-readable development labels**, not secret keys, 
 
 **Repository:** [trimblemitch796-cell/SYNTH_SHAI](https://github.com/trimblemitch796-cell/SYNTH_SHAI)
 
-**Branches observed:** `main`, `maniac-sync-v1`, `SYNTH-SHAI-V3-1`, `trimblemitch796-cell-patch-1`. V3.1 (`SYNTH-SHAI-V3-1`, PR #2) was merged into `main` on 25 October 2026; the branch is kept for further work. Files vary by branch; branch existence does not mean its contents are merged into `main`.
+**Branches:** `main` holds all merged work: V3.1 (PR #2), the bridge (PR #5), MANIAC steps 1–5 and hardening (PRs #11–#16), V25 TRI5 (PRs #17–#18) and V3.1 concurrent replay tests (PR #19). `maniac-sync-v1` is an unmerged research branch. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the current milestone record.
 
-### 5.1 Current financial prototype on `main`
+### 5.1 Finance prototype and basic evidence gate
 
 - `shai_finance.py`: local, educational financial calculations using Python `Decimal` for budgets, liquidity coverage, illustrative fixed-rate debt schedules, payment reconciliation flags, and limited wellbeing inputs.
 - `test_shai_finance.py`: unit tests for arithmetic and adverse or missing inputs.
@@ -129,7 +129,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **147 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 10 V3.1 bridge, 19 MANIAC supervisor, 8 USHAI Catharsis, 14 MANIAC monitor, 14 MANIAC evidence, 9 MANIAC hardening, 10 MANIAC simulation, 9 TRIANGULATE and 16 VERIFY tests.
+Running `python3 -m unittest discover -v` (25 October 2026) runs **173 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 4 V3.1 concurrent replay, 10 V3.1 bridge, 8 USHAI Catharsis, 19 MANIAC supervisor, 9 MANIAC hardening, 14 MANIAC monitor, 14 MANIAC evidence, 9 TRIANGULATE, 21 VERIFY, 10 MANIAC simulation, 8 V25 TRI5 and 9 V25 TRI5 integration tests.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -141,9 +141,16 @@ Merged into `main` on 25 October 2026 (PR #2), `verification_v3.py` implements a
 
 `main` declares the Python dependency `cryptography>=43,<47` in `requirements.txt`.
 
-### 5.3 MANIAC sync research
+### 5.3 MANIAC, USHAI and V25 TRI5 (offline simulation on `main`)
 
-Branch `maniac-sync-v1` includes a MANIAC test workflow at `.github/workflows/maniac-sync-tests.yml`, which specifies Python syntax and unit-test checks involving MANIAC sync modules. This is **offline software validation**, not proof that a dedicated chip or physical robot has been built. The MANIAC supervisor/chip and wider fault-simulator concepts remain research and prototype work, with strict no-actuation defaults.
+These modules are **offline simulations that control no hardware**. They only return `144 HOLD`, `HUMAN_REVIEW` (or for V25 TRI5 `URGENT_HUMAN_HELP`), and `approval_granted` is always False.
+
+- `ushai_catharsis.py`: USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1), written by Mitch Trimble.
+- `maniac/`: supervisor, MONITOR SYSTEM, CHECK EVIDENCE, 555000 TRIANGULATE, 444000 VERIFY / HUMAN APPROVAL and MANIAC_SIMULATION (`python3 -m maniac.simulation`). See [docs/MANIAC_SUPERVISOR.md](docs/MANIAC_SUPERVISOR.md).
+- `v25_tri5.py`: V25 TRI5 child-safeguarding advisory gate, an extra conservative layer after MANIAC/USHAI that never overrides a HOLD. See [docs/V25_TRI5.md](docs/V25_TRI5.md).
+- Release evidence and boundaries: [docs/V31_RELEASE_VERIFICATION.md](docs/V31_RELEASE_VERIFICATION.md).
+
+The separate `maniac-sync-v1` branch holds earlier MANIAC sync research and is **not merged**.
 
 ### 5.4 Verified GitHub Actions evidence
 
@@ -200,56 +207,59 @@ These are related workstreams and proposed applications, **not a claim that ever
 SYNTH_SHAI/
 ├── README.md                         # Overall project explanation (this file)
 ├── LICENSE                           # MIT License
-├── shai_finance.py                   # Existing financial prototype on main
-├── test_shai_finance.py              # Existing finance tests
-├── VALIDATION.md                     # Existing financial validation report
-├── verification/                     # Existing basic evidence gate package
-├── test_verification.py              # Basic evidence gate tests
-├── verification_v3.py                # V3 authenticated evidence gate (merged from V3.1 work)
-├── verification_v3_1.py              # V3.1 strict-scope evidence + replay gate
-├── test_verification_v3_1.py         # V3.1 CATHARSIS tests
-├── shai_v31_bridge.py                # V3.1 offline evidence bridge (CLI)
-├── test_shai_v31_bridge.py           # V3.1 bridge adversarial tests
-├── docs/V31_BRIDGE_README.md         # Bridge usage and security boundaries
+├── CONTRIBUTING.md / SECURITY.md     # How to contribute / report security issues
+├── VALIDATION.md                     # Financial validation report
 ├── requirements.txt                  # Python dependency (cryptography)
-├── .gitignore                        # Ignores caches and local files
-├── .github/workflows/verification.yml       # General CI workflow
-├── .github/workflows/verification-v3-1.yml  # V3.1 CATHARSIS tests workflow
+├── .gitignore                        # Ignores caches, local databases and OS files
+├── .github/workflows/                # CI: verification.yml, verification-v3-1.yml
 │
-├── core/                             # Package groundwork / future integration
-├── financial/                        # Package groundwork / future modules
-├── maniac/                           # MANIAC package
-├── maniac/supervisor.py              # MANIAC supervisor core (offline, HOLD / HUMAN_REVIEW only)
-├── test_maniac_supervisor.py         # Supervisor + MANIAC_SIMULATION fault tests
-├── maniac/monitor.py                 # MONITOR SYSTEM: heartbeats, watchdog, faults, SAFE_LOCK (offline sim, no hardware)
-├── test_maniac_monitor.py            # Monitor tests
-├── maniac/evidence.py                # CHECK EVIDENCE: sensors, contradictions, consent, provenance (offline sim)
-├── test_maniac_evidence.py           # CHECK EVIDENCE tests
-├── maniac/simulation.py              # MANIAC_SIMULATION fault injector (python3 -m maniac.simulation)
-├── test_maniac_simulation.py         # Simulation tests
-├── maniac/triangulate.py             # 555000 TRIANGULATE: 2+ independent agreeing sources
-├── test_maniac_triangulate.py        # TRIANGULATE tests
-├── maniac/verify.py                  # 444000 VERIFY / HUMAN APPROVAL (CONSEQUENCE REVIEW)
-├── test_maniac_verify.py             # VERIFY + human-decision tests
+├── shai_finance.py                   # Financial prototype
+├── test_shai_finance.py
+├── verification/                     # Basic evidence-presence gate package
+├── test_verification.py
+├── verification_v3.py                # V3 authenticated evidence gate
+├── verification_v3_1.py              # V3.1 strict-scope evidence + replay gate
+├── test_verification_v3_1.py
+├── test_v31_concurrent_replay.py     # V3.1 concurrent / durable replay tests
+├── shai_v31_bridge.py                # V3.1 offline evidence bridge (CLI)
+├── test_shai_v31_bridge.py
+│
 ├── ushai_catharsis.py                # USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1) by Mitch Trimble
-├── test_ushai_catharsis.py           # USHAI Catharsis tests
-├── docs/MANIAC_SUPERVISOR.md         # Supervisor + USHAI plain-English guide
+├── test_ushai_catharsis.py
+├── maniac/
+│   ├── supervisor.py                 # Supervisor core (HOLD / HUMAN_REVIEW only)
+│   ├── monitor.py                    # MONITOR SYSTEM: heartbeats, watchdog, faults, SAFE_LOCK
+│   ├── evidence.py                   # CHECK EVIDENCE: sensors, contradictions, consent, provenance
+│   ├── triangulate.py                # 555000 TRIANGULATE
+│   ├── verify.py                     # 444000 VERIFY / HUMAN APPROVAL (CONSEQUENCE REVIEW)
+│   └── simulation.py                 # MANIAC_SIMULATION fault injector
+├── test_maniac_supervisor.py, test_maniac_hardening.py, test_maniac_monitor.py,
+│   test_maniac_evidence.py, test_maniac_triangulate.py, test_maniac_verify.py,
+│   test_maniac_simulation.py
+├── v25_tri5.py                       # V25 TRI5 child-safeguarding advisory gate
+├── test_v25_tri5.py, test_v25_tri5_integration.py
 │
-└── maniac_sync_v1_2.py               # MANIAC branch research; verify exact path before use
+├── core/, financial/                 # Package groundwork / future modules
+└── docs/
+    ├── MANIAC_SUPERVISOR.md          # MANIAC + USHAI plain-English guide
+    ├── V25_TRI5.md                   # V25 TRI5 guide
+    ├── V31_BRIDGE_README.md          # Bridge usage and security boundaries
+    ├── V31_RELEASE_VERIFICATION.md   # Release evidence matrix
+    ├── PUBLIC_BETA.md                # Public research-beta notes
+    └── BUILD_STATUS.md               # Milestones and next step
 ```
 
-This tree is a **cross-branch conceptual overview**, not an exhaustive claim that all paths exist on the same branch or are production-ready. Check actual paths before running commands.
+This tree shows `main`. Nothing in it is production-ready.
 
 ## 8. Running the verified-scope Python prototype
 
 On a working copy of the **main** branch, install Python 3.11 and then:
 
-> On some systems the command is `python3` instead of `python`.
-
 ```bash
-python -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 python3 -m unittest discover -v
-python shai_finance.py
+python3 -m maniac.simulation
+python3 shai_finance.py
 ```
 
 You can also run the financial tests directly:

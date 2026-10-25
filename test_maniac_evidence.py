@@ -1,6 +1,6 @@
 import copy
 import unittest
-from maniac.evidence import check_evidence, EvidenceResult, HOLD, PASS
+from maniac.evidence import check_evidence, HOLD, PASS
 from maniac.supervisor import Supervisor, HUMAN_REVIEW
 from maniac.supervisor import HOLD as SUP_HOLD
 from test_maniac_supervisor import good_request, NOW

@@ -127,7 +127,50 @@ class TestHumanDecision(unittest.TestCase):
             res.record_human_decision("mitch", "APPROVED", "changed mind")
 
     def test_approval_granted_cannot_be_set_at_creation(self):
-        self.assertFalse(VerifyResult(HUMAN_REVIEW, approval_granted=True).approval_granted)
+        with self.assertRaises(TypeError):
+            VerifyResult(HUMAN_REVIEW, approval_granted=True)
+
+
+class TestImmutableResults(unittest.TestCase):
+    def test_results_cannot_be_flipped_to_approved(self):
+        res = consequence_review(**layers())
+        sup = Supervisor(clock=lambda: NOW).evaluate(good_request())
+        for obj in (res, EvidenceResult("PASS"), sup):
+            with self.subTest(obj=type(obj).__name__):
+                with self.assertRaises(AttributeError):
+                    obj.approval_granted = True
+                self.assertFalse(obj.approval_granted)
+        with self.assertRaises(AttributeError):
+            res.decision = HUMAN_REVIEW
+        with self.assertRaises(AttributeError):
+            sup.decision = "APPROVED"
+
+    def test_human_decision_cannot_be_overwritten_directly(self):
+        res = consequence_review(**layers())
+        with self.assertRaises(AttributeError):
+            res.human_decision = "APPROVED"
+
+
+class TestReasonDedup(unittest.TestCase):
+    def test_monitor_reason_appears_once_in_order(self):
+        snap = {"state": "144 HOLD", "reason": "missed heartbeat: camera"}
+        res = Supervisor(clock=lambda: NOW).review(good_request(), snap,
+                                                   EvidenceResult("PASS"), layers()["triangulation"])
+        texts = [t for _, t in res.reasons]
+        self.assertEqual(sum("missed heartbeat" in t for t in texts), 1)
+        self.assertEqual(res.reasons[0], ("MONITOR SYSTEM", "missed heartbeat: camera"))
+
+    def test_exact_repeats_removed(self):
+        ev = EvidenceResult("144 HOLD", [("222 OBSERVE RAW", "NaN"), ("222 OBSERVE RAW", "NaN"),
+                                         ("777000 RECEIVE EVIDENCE", "forged")])
+        res = consequence_review(**layers(evidence_result=ev))
+        self.assertEqual(res.reasons, [("CHECK EVIDENCE 222 OBSERVE RAW", "NaN"),
+                                       ("CHECK EVIDENCE 777000 RECEIVE EVIDENCE", "forged")])
+
+    def test_new_supervisor_reason_is_kept(self):
+        held = Supervisor(clock=lambda: NOW).evaluate(dict(good_request(), faults=["overheat"]))
+        res = consequence_review(**layers(supervisor_result=held))
+        self.assertEqual([layer for layer, _ in res.reasons], ["SUPERVISOR"])
 
 
 if __name__ == "__main__":

@@ -13,8 +13,8 @@ HUMAN (purpose, values, consent)
   -> 000 PAUSE / ASSESS -> 111 IDENTIFY INTENT -> 222 OBSERVE RAW
   -> 333 DEFINE PROBLEM -> 333000 RECORD -> 777000 RECEIVE EVIDENCE
   -> 555000 TRIANGULATE -> 888000 CHECK LOOP -> CONSEQUENCE REVIEW
-       RISK / ERROR FOUND  -> 144 HOLD -> 1301133 REPAIR -> 666000 RECOVERY
-       EVIDENCE SUFFICIENT -> 444000 VERIFY -> HUMAN REVIEW
+       RISK / ERROR FOUND  -> 144 HOLD -> 1301133 BUILD / REPAIR / REFRAME -> 666000 RECOVERY
+       EVIDENCE SUFFICIENT -> 444000 VERIFY / HUMAN APPROVAL -> HUMAN REVIEW
   both -> 222000 RE-OBSERVE -> 111000 COMPARE / LEARN -> 999000 AUDIT -> Δ BALANCE
 ```
 
@@ -31,7 +31,7 @@ a sensor outside its valid range, fewer than two independent sources, sources di
 by more than 5 % (default tolerance), an action or limit outside human consent,
 or the exact same request seen again (loop).
 
-`recover()` (1301133 REPAIR + 666000 RECOVERY) only re-evaluates a **new** request id
+`recover()` (1301133 BUILD / REPAIR / REFRAME + 666000 RECOVERY) only re-evaluates a **new** request id
 with fresh evidence; it never re-uses the held one.
 
 ## USHAI Catharsis gate
@@ -163,3 +163,16 @@ Only `result.record_human_decision(operator_id, decision, reason)` can approve. 
 must be non-empty text, and `decision` must be exactly `"APPROVED"` or `"REJECTED"`. True, "yes" and "approved" are all refused.
 A HOLD can't be approved, and only one decision can be recorded.
 `Supervisor.review(request, monitor_snapshot, evidence_result, triangulation)` runs all of this in one call.
+
+## Results are read-only
+
+Every result object is frozen and can't be changed after it is created: supervisor `Result`, `EvidenceResult`,
+`TriangulationResult` and `VerifyResult`. `approval_granted` is a read-only property that is always `False`. The only
+approval path is `VerifyResult.record_human_decision(...)`, an explicit human choice. When several layers report the same
+problem, for example a monitor fault that the supervisor repeats, VERIFY lists it once and keeps the original order.
+
+## Where V25 TRI5 fits
+
+[V25 TRI5](V25_TRI5.md) (`v25_tri5.layered_review`) is an **extra conservative safeguarding gate that runs after** the
+MANIAC/USHAI result. It can add `144 HOLD`, `HUMAN_REVIEW` or `URGENT_HUMAN_HELP`, but it never overrides a MANIAC HOLD and
+never approves anything. Nothing in MANIAC changes V25 TRI5's logic.

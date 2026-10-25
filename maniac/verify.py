@@ -37,17 +37,18 @@ class HumanDecision:
         return self.decision == "APPROVED"
 
 
-@dataclass
+@dataclass(frozen=True)   # frozen: fields can't be changed after creation
 class VerifyResult:
     decision: str
     reasons: list = field(default_factory=list)     # [(layer, text), ...] from EVERY layer
     next_steps: list = field(default_factory=list)
     pending_gates: list = field(default_factory=lambda: list(PENDING_GATES))
-    approval_granted: bool = False                  # the machine never approves
     human_decision: object = None
 
-    def __post_init__(self):
-        self.approval_granted = False
+    @property
+    def approval_granted(self):
+        """The machine never approves: always False, and it can't be set."""
+        return False
 
     def record_human_decision(self, operator_id, decision, reason):
         """The ONLY way something can be approved: an explicit human choice.
@@ -63,8 +64,11 @@ class VerifyResult:
         # Exact words only: "yes", "true", "approved", True are all refused
         if type(decision) is not str or decision not in HUMAN_CHOICES:
             raise ValueError("decision must be exactly 'APPROVED' or 'REJECTED'")
-        self.human_decision = HumanDecision(operator_id.strip(), decision, reason.strip())
-        return self.human_decision
+        decision_record = HumanDecision(operator_id.strip(), decision, reason.strip())
+        # The result is frozen. This method is the ONE place allowed to fill in
+        # human_decision, and only once (checked above).
+        object.__setattr__(self, "human_decision", decision_record)
+        return decision_record
 
 
 def consequence_review(ushai, monitor_snapshot, evidence_result, triangulation,
@@ -92,12 +96,21 @@ def consequence_review(ushai, monitor_snapshot, evidence_result, triangulation,
             for gate, text in getattr(triangulation, "reasons", None) or [("", "no triangulation")]:
                 reasons.append((gate or "555000 TRIANGULATE", text))
 
-        # Supervisor (optional)
+        # Supervisor (optional). Its reason often repeats a layer above
+        # (e.g. "monitor state 144 HOLD: missed heartbeat"), so only add it
+        # if it says something new.
         if supervisor_result is not None and getattr(supervisor_result, "decision", None) != HUMAN_REVIEW:
-            reasons.append(("SUPERVISOR", getattr(supervisor_result, "reason", "bad result")))
+            text = str(getattr(supervisor_result, "reason", "bad result"))
+            if not any(seen and seen in text for _, seen in reasons):
+                reasons.append(("SUPERVISOR", text))
     except Exception as exc:  # fail closed
         reasons.append(("444000 VERIFY", "internal error: %s" % type(exc).__name__))
 
-    if reasons:
-        return VerifyResult(HOLD, reasons, list(HOLD_NEXT_STEPS))
+    # Drop exact repeats, keeping the first-seen order
+    unique = []
+    for pair in reasons:
+        if pair not in unique:
+            unique.append(pair)
+    if unique:
+        return VerifyResult(HOLD, unique, list(HOLD_NEXT_STEPS))
     return VerifyResult(HUMAN_REVIEW, [], list(REVIEW_NEXT_STEPS))

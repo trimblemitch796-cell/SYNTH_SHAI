@@ -10,6 +10,6 @@ The `layered_review` function can be called as an **additional conservative gate
 
 In immediate danger, people should seek appropriate local emergency or child-protection help without waiting for software. Reporting obligations depend on jurisdiction and circumstances. A safeguarding-qualified human must decide appropriate handling, including protecting a child from disclosure to a potentially unsafe adult.
 
-Run `python -m unittest test_v25_tri5 -v` or the full offline test suite with `python -m unittest discover -v`.
+Run `python3 -m unittest test_v25_tri5 -v` or the full offline test suite with `python3 -m unittest discover -v`.
 
-**144 HOLD:** No surveillance, private-data retention, automated reporting or autonomous enforcement. **444000:** Human review, not autonomous authorization.
+**144 HOLD:** No surveillance, private-data retention, automated reporting or autonomous enforcement. **444000 VERIFY / HUMAN APPROVAL:** Human review, not autonomous authorization. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for the MANIAC/USHAI layers that run before this gate.

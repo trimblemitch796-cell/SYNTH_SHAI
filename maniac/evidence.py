@@ -42,15 +42,16 @@ def relative_spread(values):
     return (max(values) - min(values)) / scale
 
 
-@dataclass
+@dataclass(frozen=True)   # frozen: fields can't be changed after creation
 class EvidenceResult:
     overall: str
     reasons: list = field(default_factory=list)   # [(gate, text), ...]
     audit: list = field(default_factory=list)
-    approval_granted: bool = False
 
-    def __post_init__(self):
-        self.approval_granted = False             # never True
+    @property
+    def approval_granted(self):
+        """Always False. A read-only property, so it can never be set to True."""
+        return False
 
 
 def bridge_provenance(provenance):
