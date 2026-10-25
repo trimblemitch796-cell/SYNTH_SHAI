@@ -68,3 +68,27 @@ per call, audit order, recovery stays in HOLD, and it never grants approval.
 python3 -m pip install -r requirements.txt
 python3 -m unittest discover -v
 ```
+
+## MONITOR SYSTEM (`maniac/monitor.py`)
+
+> Offline simulation only. It controls no hardware; "components" are just names.
+
+| State | When |
+| --- | --- |
+| `MONITOR` | Every component heartbeat is fresh, the watchdog was kicked, no active faults |
+| `144 HOLD` | A missed heartbeat (default 2 s each), a missed watchdog kick (default 2 s), any active fault, or bad input. It also starts in HOLD |
+| `SAFE_LOCK` | A critical fault, or the same fault raised 3 times. **Latched** |
+
+- Clearing a fault needs a written reason, and the clear is audited.
+- SAFE_LOCK never unlocks by itself, even when the faults are gone. `human_reset(operator_id, reason)`
+  needs both values filled in, and it is refused while faults are still active. After a reset
+  the state is `144 HOLD`. It goes back to `MONITOR` only after **fresh** heartbeats from every component and a new watchdog kick.
+- Errors fail closed: HOLD, or SAFE_LOCK if already latched. `approval_granted` is always False.
+- Every state change is written to `monitor.audit`.
+- The supervisor can use it like this: `supervisor.evaluate(request, monitor.snapshot())`. Any state other than `MONITOR` gives `144 HOLD` with the monitor's reason.
+
+```python
+from maniac.monitor import Monitor
+m = Monitor(clock, ["camera", "lidar"])
+m.heartbeat("camera"); m.heartbeat("lidar"); m.kick()   # -> State.MONITOR
+```
