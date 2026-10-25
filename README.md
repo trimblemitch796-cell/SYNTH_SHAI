@@ -7,7 +7,7 @@
 
 **Project status (25 October 2026):** Active research and development. The repository contains offline Python prototypes, verification logic, automated tests, and exploratory designs. Passing CI does **not** mean that SYNTH_SHAI is an independently validated general AI, conscious system, deployable robot, licensed financial service, or operational safety controller.
 
-**Public research code only:** SYNTH_SHAI is not a hosted AI service, not a financial adviser, and not an autonomous robotics controller.
+**Public research code only:** SYNTH_SHAI is not a hosted AI service, not a financial adviser, not an autonomous robotics controller, and not a medical device.
 
 ## 1. Mission
 
@@ -149,6 +149,7 @@ These modules are **offline simulations that control no hardware**. They only re
 
 - `ushai_catharsis.py`: USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1), written by Mitch Trimble.
 - `maniac/`: supervisor, MONITOR SYSTEM, CHECK EVIDENCE, 555000 TRIANGULATE, 444000 VERIFY / HUMAN APPROVAL, 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE (`run_loop`) and MANIAC_SIMULATION (`python3 -m maniac.simulation`). See [docs/MANIAC_SUPERVISOR.md](docs/MANIAC_SUPERVISOR.md).
+- `synth_shai_doctor/`: AAA Doctor V1, a **simulation-only**, synthetic-data-only escalation rule layer. It is not a medical device and makes no diagnosis or dispatch. In an emergency in Australia, call 000. See [synth_shai_doctor/README.md](synth_shai_doctor/README.md).
 - `shai/`: SHAI digital twin and ELO-ECTRIC power model. These are **software-only, use illustrative numbers and are not hardware-ready**. Joints move only through MANIAC `run_loop()` plus an explicit human approval. See [docs/SHAI_DIGITAL_TWIN.md](docs/SHAI_DIGITAL_TWIN.md).
 - `v25_tri5.py`: V25 TRI5 child-safeguarding advisory gate, an extra conservative layer after MANIAC/USHAI that never overrides a HOLD. The offline loop supports opt-in assessment via `safety_signals`. See [docs/V25_TRI5.md](docs/V25_TRI5.md).
 - Release evidence and boundaries: [docs/V31_RELEASE_VERIFICATION.md](docs/V31_RELEASE_VERIFICATION.md).
@@ -252,6 +253,8 @@ SYNTH_SHAI/
 ├── test_shai_twin.py, test_shai_power.py
 ├── v25_tri5.py                       # V25 TRI5 child-safeguarding advisory gate
 ├── test_v25_tri5.py, test_v25_tri5_integration.py
+├── synth_shai_doctor/                # AAA Doctor V1 (simulation only, not a medical device)
+├── test_synth_shai_doctor.py
 ├── super_tool_v1.py                  # Super Tool V1 offline ASK / CHECK / BUILD starter
 ├── test_super_tool_v1.py
 │

@@ -23,6 +23,7 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 - PR #22: step 6, which covers 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE and `run_loop`, merged.
 - PR #23: Super Tool V1 offline ASK / CHECK / BUILD starter merged.
 - Step 7: SHAI digital twin + ELO-ECTRIC power model are present on `main`. Software only, illustrative numbers, **not hardware-ready**.
+- AAA Doctor V1 (`synth_shai_doctor/`, Mitch's package): proposed. **Simulation-only, synthetic data only, not a medical device, needs external clinical review.**
 
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
