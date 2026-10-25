@@ -21,6 +21,8 @@ Private vulnerability disclosures must use an owner-verified private channel; do
 - [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md), [V25_TRI5.md](V25_TRI5.md): offline supervisor and safeguarding advisory scope.
 - Source and tests: `verification_v3.py`, `verification_v3_1.py`, `shai_v31_bridge.py`, `ushai_catharsis.py`, `maniac/`, `v25_tri5.py`, `shai/`, corresponding `test_*.py`.
 
+**Medical-adjacent code:** `synth_shai_doctor/` (AAA Doctor V1) is a simulation-only rule layer for abdominal aortic aneurysm danger signs. It accepts synthetic cases only. It is **not a medical device**, makes no diagnosis or dispatch, and needs review by a qualified clinician (plus regulatory and privacy review) before any real-world use.
+
 ## Reproduction on an isolated checkout
 
 1. Record reviewer, system/platform, repository URL, **exact immutable commit SHA**, Python version, dependency hashes and date.
