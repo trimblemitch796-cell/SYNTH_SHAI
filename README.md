@@ -34,22 +34,19 @@ HUMAN INTENT & CONSENT
 AI COGNITION / PROPOSAL
         |
         v
-SYNTH METACOGNITION (evidence, conflicts, uncertainty)
+USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1)
         |
         v
-MANIAC SUPERVISION + SAFE SIMULATION
+000 PAUSE / ASSESS -> 111 IDENTIFY INTENT -> 222 OBSERVE RAW -> 333 DEFINE PROBLEM
+-> 333000 RECORD -> 777000 RECEIVE EVIDENCE -> 555000 TRIANGULATE -> 888000 CHECK LOOP
         |
         v
-444000 VERIFY  --->  144 HOLD if requirements fail
+CONSEQUENCE REVIEW (MANIAC monitor + evidence checks)
+   RISK / ERROR FOUND  -> 144 HOLD -> 1301133 REPAIR -> 666000 RECOVERY
+   EVIDENCE SUFFICIENT -> 444000 VERIFY -> HUMAN REVIEW
         |
         v
-HUMAN REVIEW / SCOPE APPROVAL (when required)
-        |
-        v
-111000 LEARN FROM VERIFIED OUTCOMES
-        |
-        v
-Delta BALANCE / AUDIT / REPEAT
+222000 RE-OBSERVE -> 111000 COMPARE / LEARN -> 999000 AUDIT -> Δ BALANCE
 ```
 
 **Foundational distinctions:**
@@ -97,10 +94,10 @@ These project codes are **human-readable development labels**, not secret keys, 
 
 | Code | Project meaning |
 | --- | --- |
-| `000` | PAUSE |
-| `111` | IDENTIFY |
+| `000` | PAUSE / ASSESS |
+| `111` | IDENTIFY INTENT |
 | `222` | OBSERVE RAW |
-| `333` | DEFINE |
+| `333` | DEFINE PROBLEM |
 | `333000` | RECORD |
 | `111000` | COMPARE / LEARN |
 | `222000` | RE-OBSERVE |
@@ -111,7 +108,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 | `999000` | AUDIT |
 | `144` | HOLD |
 | `1301133` | BUILD / REPAIR / REFRAME |
-| `444000` | VERIFY / HUMAN APPROVAL GATE |
+| `444000` | VERIFY / HUMAN APPROVAL |
 | `Δ` | BALANCE |
 
 **User-defined symbolic memory sequence:** `130113011130133013330130013000`. This string is a project reference only; it does not authenticate a user or implement persistent machine memory.
@@ -132,7 +129,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **48 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1 and 10 V3.1 bridge tests.
+Running `python3 -m unittest discover -v` on `main` (25 October 2026) ran **75 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 10 V3.1 bridge, 19 MANIAC supervisor and 8 USHAI Catharsis tests.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -221,7 +218,12 @@ SYNTH_SHAI/
 │
 ├── core/                             # Package groundwork / future integration
 ├── financial/                        # Package groundwork / future modules
-├── maniac/                           # Package groundwork / future modules
+├── maniac/                           # MANIAC package
+├── maniac/supervisor.py              # MANIAC supervisor core (offline, HOLD / HUMAN_REVIEW only)
+├── test_maniac_supervisor.py         # Supervisor + MANIAC_SIMULATION fault tests
+├── ushai_catharsis.py                # USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1) by Mitch Trimble
+├── test_ushai_catharsis.py           # USHAI Catharsis tests
+├── docs/MANIAC_SUPERVISOR.md         # Supervisor + USHAI plain-English guide
 │
 └── maniac_sync_v1_2.py               # MANIAC branch research; verify exact path before use
 ```
