@@ -19,6 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from maniac.monitor import Monitor
 from maniac.evidence import check_evidence
 from maniac.supervisor import Supervisor
+from maniac.triangulate import triangulate, readings_from_bundle
 from ushai_catharsis import EthicalEvidence
 from verification_v3 import canonical_bytes, sha256_text
 
@@ -64,9 +65,9 @@ class Scenario:
         self.monitor.kick()
         self.bundle = {
             "sensors": [
-                {"source": "camera", "quantity": "distance", "value": 10.0, "min": 0, "max": 100,
+                {"source": "camera", "type": "camera", "quantity": "distance", "value": 10.0, "min": 0, "max": 100,
                  "timestamp": NOW - 0.5, "history": [9.6, 9.8, 9.9, 10.1, 10.0]},
-                {"source": "lidar", "quantity": "distance", "value": 10.2, "min": 0, "max": 100,
+                {"source": "lidar", "type": "lidar", "quantity": "distance", "value": 10.2, "min": 0, "max": 100,
                  "timestamp": NOW - 0.5, "history": [9.7, 9.9, 10.0, 10.3, 10.2]},
             ],
             "action": "move_arm",
@@ -88,14 +89,17 @@ class Scenario:
         self.supervisor = Supervisor(clock=self.clock)
 
     def run(self):
-        """Monitor -> CHECK EVIDENCE -> Supervisor. Returns the outcome."""
+        """Monitor -> CHECK EVIDENCE -> 555000 TRIANGULATE -> 444000 VERIFY.
+        Returns (outcome, reason). The reason lists EVERY layer's problems."""
         snap = self.monitor.snapshot()
         if snap["state"] == SAFE_LOCK:
             return SAFE_LOCK, snap["reason"]
         evidence = check_evidence(self.bundle, self.clock)
-        result = self.supervisor.evaluate(self.request, snap, evidence)
+        tri = triangulate(readings_from_bundle(self.bundle))
+        result = self.supervisor.review(self.request, snap, evidence, tri)
         assert result.approval_granted is False   # never, in any scenario
-        return result.decision, result.reason
+        reason = "; ".join("%s: %s" % pair for pair in result.reasons) or "evidence sufficient"
+        return result.decision, reason
 
 
 # ---- fault injectors: each one changes the clean scenario --------------
@@ -171,6 +175,8 @@ SCENARIOS = [
     ("tampered_provenance", "report edited after signing", tamper, HOLD),
     ("replayed_evidence", "same evidence used twice", replay, HOLD),
     ("malformed_input", "sensors is a string", lambda s: s.bundle.update(sensors="lots"), HOLD),
+    ("same_type_sources", "two cameras (same type)",
+     lambda s: s.bundle["sensors"][1].update(type="camera"), HOLD),
     ("repeated_fault", "fault 'slip' raised 3 times", repeated_fault, SAFE_LOCK),
     ("several_faults", "NaN + wrong action + overheat", several, HOLD),
 ]

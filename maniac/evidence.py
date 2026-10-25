@@ -30,6 +30,18 @@ STUCK_COUNT = 5     # same value this many times in a row = stuck sensor
 ALLOWED_FIELDS = {"sensors", "action", "consent", "provenance"}
 
 
+def is_real_number(x):
+    """True only for a finite int/float. bool is rejected (Python treats True as 1)."""
+    return type(x) in (int, float) and math.isfinite(x)
+
+
+def relative_spread(values):
+    """How far apart the values are, as a fraction of the biggest one.
+    Shared by CHECK EVIDENCE and 555000 TRIANGULATE."""
+    scale = max(abs(v) for v in values) or 1.0
+    return (max(values) - min(values)) / scale
+
+
 @dataclass
 class EvidenceResult:
     overall: str
@@ -85,7 +97,7 @@ def _check_sensors(sensors, now, max_age, tolerance, reasons, audit):
         name = s.get("source")
         nums = [s.get(k) for k in ("value", "min", "max", "timestamp")]
         # bool is a kind of int in Python, so reject it explicitly
-        if any(type(n) not in (int, float) or not math.isfinite(n) for n in nums):
+        if not all(is_real_number(n) for n in nums):
             reasons.append((G_OBSERVE_RAW, "sensor %r: non-numeric, NaN or inf" % (name,)))
             continue
         value, lo, hi, ts = nums
@@ -112,9 +124,7 @@ def _check_sensors(sensors, now, max_age, tolerance, reasons, audit):
         if len(readings) < 2:
             reasons.append((G_TRIANGULATE, "%r has fewer than two valid sources" % (quantity,)))
             continue
-        values = list(readings.values())
-        scale = max(abs(v) for v in values) or 1.0
-        if (max(values) - min(values)) / scale > tolerance:
+        if relative_spread(list(readings.values())) > tolerance:
             reasons.append((G_TRIANGULATE, "sources contradict on %r" % (quantity,)))
 
 
