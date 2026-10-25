@@ -24,6 +24,7 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 - PR #23: Super Tool V1 offline ASK / CHECK / BUILD starter merged.
 - Step 7: SHAI digital twin + ELO-ECTRIC power model are present on `main`. Software only, illustrative numbers, **not hardware-ready**.
 - AAA Doctor V1 (`synth_shai_doctor/`, Mitch's package): proposed. **Simulation-only, synthetic data only, not a medical device, needs external clinical review.**
+- Review fix (HIGH): the V3.1 replay database is now fixed by trusted configuration (`Supervisor(replay_db=...)` / `ShaiTwin(replay_db=...)`). Request provenance must be exactly `{"envelope"}`; a request-supplied `db_path` is refused (144 HOLD), and with no configured store provenance always HOLDs.
 
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.

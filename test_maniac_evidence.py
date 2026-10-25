@@ -1,6 +1,6 @@
 import copy
 import unittest
-from maniac.evidence import check_evidence, HOLD, PASS
+from maniac.evidence import check_evidence, make_bridge_checker, HOLD, PASS
 from maniac.supervisor import Supervisor, HUMAN_REVIEW
 from maniac.supervisor import HOLD as SUP_HOLD
 from test_maniac_supervisor import good_request, NOW
@@ -20,7 +20,7 @@ def good_bundle():
         ],
         "action": "move_arm",
         "consent": {"allowed_actions": ["move_arm"], "expires_at": NOW + 60},
-        "provenance": {"envelope": {}, "db_path": "unused"},
+        "provenance": {"envelope": {}},
     }
 
 
@@ -120,10 +120,22 @@ class TestRealBridgeProvenance(bridge_tests.BridgeTests):
 
     def test_real_bridge_pass_then_replay_holds(self):
         b = good_bundle()
-        b["provenance"] = {"envelope": self.envelope, "db_path": self.db}
-        self.assertEqual(check_evidence(b, clock).overall, PASS)
-        replay = check_evidence(copy.deepcopy(b), clock)
+        b["provenance"] = {"envelope": self.envelope}
+        checker = make_bridge_checker(self.db)   # trusted configuration
+        self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, PASS)
+        replay = check_evidence(copy.deepcopy(b), clock, provenance_checker=checker)
         self.assertEqual(replay.overall, HOLD)   # same evidence twice = replay
+
+    def test_request_cannot_choose_replay_db(self):
+        b = good_bundle()
+        checker = make_bridge_checker(self.db)
+        b["provenance"] = {"envelope": self.envelope}
+        self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, PASS)
+        fresh = str(self.db) + ".fresh"
+        b["provenance"] = {"envelope": self.envelope, "db_path": fresh}
+        self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, HOLD)
+        b["provenance"] = {"envelope": self.envelope}
+        self.assertEqual(check_evidence(b, clock).overall, HOLD)   # default: no trusted store
 
 
 if __name__ == "__main__":
