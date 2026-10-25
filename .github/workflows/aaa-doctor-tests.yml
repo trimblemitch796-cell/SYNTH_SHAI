@@ -16,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  simulation-tests:
+  aaa-doctor-tests:
+    name: aaa-doctor-tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

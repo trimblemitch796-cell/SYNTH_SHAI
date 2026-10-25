@@ -38,7 +38,7 @@ PR #25 merged at `ef1ffd22c210614dffaa9087b695b21f9efab5b7`. Its post-merge veri
 python3 -m unittest discover -v
 python3 -m maniac.simulation
 ```
-Local verification of the security-hardening candidate on 25 October 2026 passed **288 tests** and **33/33 simulation scenarios**. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
+Local verification of `main` on 26 October 2026 (after PR #39) passed **382 tests** and **33/33 simulation scenarios**. The security-hardening candidate on 25 October 2026 passed 288 tests. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
 
 ## Next step
 Review the release/security hardening and exact-head CI, enable/confirm private reporting and branch protection, then obtain independent outside review (see issue #21 and [the release checklist](RELEASE_SECURITY_CHECKLIST.md)). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
