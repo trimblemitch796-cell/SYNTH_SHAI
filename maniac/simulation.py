@@ -206,7 +206,7 @@ def twin(kind):
     """Build a twin scenario. Returns the injector used in SCENARIOS."""
     def inject(s):
         def run(s):
-            from shai.twin import ShaiTwin            # imported here: shai imports maniac
+            from shai.twin import ShaiTwin, approval_for            # imported here: shai imports maniac
             kw = {"soc": 0.10} if kind == "low_battery" else {}
             kw.update({"temp_c": 65.0} if kind == "overheat" else {})
             t = ShaiTwin(seed=7, replay_db=s.db_path, **kw)
@@ -214,8 +214,7 @@ def twin(kind):
             rid = "twin-" + kind
             target = 200 if kind == "over_limit" else 30
             plan = {"request_id": rid, "moves": {"elbow_left": target}, "duration_s": 2.0}
-            approval = {"request_id": rid, "operator_id": "mitch", "decision": "APPROVED",
-                        "reason": "small elbow test"}
+            approval = approval_for(plan, "mitch", "APPROVED", "small elbow test")
             if kind == "unapproved":
                 approval = None
             if kind == "replayed_approval":

@@ -9,11 +9,17 @@ joints only when ALL of these hold:
   1. the plan is valid and inside every joint's angle / speed / torque limit
   2. the battery has enough energy ABOVE the safe-stop reserve
   3. MANIAC run_loop() ends BALANCED with HUMAN_REVIEW
-  4. a valid human "APPROVED" decision was recorded for THIS request id
+  4. a valid human "APPROVED" decision was recorded for THIS exact plan:
+     the approval carries plan_sha256 = plan_digest(plan) (a canonical hash
+     of request_id + moves + duration_s), re-checked right before motion,
+     and each approval is single-use
 Anything else -> 144 HOLD (or SAFE_LOCK) and nothing moves.
 """
 from collections import deque
 from dataclasses import dataclass
+import copy
+import hashlib
+import json
 import math
 import random
 
@@ -46,6 +52,24 @@ JOINTS = {
 COMPONENTS = ["camera", "lidar", "imu", "encoders", "contact", "power"]
 ACTION = "move_joints"
 MOVED, HOLD, SAFE_LOCK = "MOVED", "144 HOLD", "SAFE_LOCK"
+
+
+APPROVAL_FIELDS = {"request_id", "plan_sha256", "operator_id", "decision", "reason"}
+
+
+def plan_digest(plan):
+    """Canonical SHA-256 of the exact motion plan (request_id, moves, duration_s).
+    A human approval must carry this value, so it authorises THIS plan only."""
+    body = {"request_id": plan["request_id"], "moves": plan["moves"],
+            "duration_s": plan["duration_s"]}
+    text = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def approval_for(plan, operator_id, decision, reason):
+    """Build the approval record a human reviewer signs off for one exact plan."""
+    return {"request_id": plan["request_id"], "plan_sha256": plan_digest(plan),
+            "operator_id": operator_id, "decision": decision, "reason": reason}
 
 
 class FakeClock:
@@ -86,6 +110,7 @@ class ShaiTwin:
         self._dead = set()              # sensors that dropped out
         self._dropout_plan = None       # (sensor, step) - simulation fault hook
         self._executed = set()          # request ids already used
+        self._used_approvals = set()    # (request_id, plan_sha256) approvals consumed
         self._stops = []                # why each safe stop happened
         self._consent_until = self._clock() + consent_seconds
         self._tick()
@@ -116,24 +141,29 @@ class ShaiTwin:
     # ---- the ONLY way to move ------------------------------------------
     def request_motion(self, plan, approval=None, provenance=None, ethical_evidence=None):
         """plan: {"request_id": str, "moves": {joint: target_deg}, "duration_s": number}
-        approval: {"request_id", "operator_id", "decision", "reason"} from a human
+        approval: {"request_id", "plan_sha256", "operator_id", "decision", "reason"}
+            from a human; build with approval_for(plan, ...). Single-use.
         provenance: {"envelope"} - freshly signed V3.1 evidence. The replay
             database is fixed by ShaiTwin(replay_db=...); a request-supplied
             "db_path" is refused (144 HOLD)."""
         rid = plan.get("request_id") if isinstance(plan, dict) else None
         try:
+            plan = copy.deepcopy(plan)   # caller can't change the plan after approval checks
             problems, energy = self._check_plan(plan)
             if problems:
                 return self._hold(rid, problems)
             if rid in self._executed:
                 return self._hold(rid, ["request id already used"])
 
-            # Human approval must be for THIS exact request id
+            # Human approval must be for THIS exact plan (request id + plan hash)
+            digest = plan_digest(plan)
             human = None
-            if isinstance(approval, dict) and approval.get("request_id") == rid:
+            if approval is not None:
+                if not self._approval_matches(approval, rid, digest):
+                    return self._hold(rid, ["approval is for a different request or plan"])
+                if (rid, digest) in self._used_approvals:
+                    return self._hold(rid, ["approval already used"])
                 human = (approval.get("operator_id"), approval.get("decision"), approval.get("reason"))
-            elif approval is not None:
-                problems.append("approval is for a different request")
 
             self._tick()
             bundle = self._bundle(provenance)
@@ -143,6 +173,8 @@ class ShaiTwin:
                                   fresh_readings=readings_from_bundle(self._bundle(None)),
                                   human=human)
             self._executed.add(rid)
+            if human is not None:
+                self._used_approvals.add((rid, digest))   # single-use, even if held
             problems += ["%s: %s" % tuple(r) for r in balance.reasons]
             if self._monitor.snapshot()["state"] == "SAFE_LOCK":
                 return MotionResult(rid, SAFE_LOCK, False, tuple(problems), balance)
@@ -150,6 +182,10 @@ class ShaiTwin:
                 return self._hold(rid, problems or ["MANIAC loop not balanced"], balance)
             if balance.human_decision is None or not balance.human_decision.approved:
                 return self._hold(rid, problems + ["no human APPROVED decision for this request"], balance)
+            # Re-check the binding right before motion
+            if approval is None or not self._approval_matches(approval, rid, digest) \
+                    or plan_digest(plan) != digest:
+                return self._hold(rid, problems + ["approval does not match the exact plan"], balance)
             return self._execute(rid, plan, energy, balance)
         except Exception as exc:  # fail closed
             return self._hold(rid, ["internal error: %s" % type(exc).__name__])
@@ -161,6 +197,12 @@ class ShaiTwin:
         return dict(self._angles)
 
     # ---- private helpers -------------------------------------------------
+    @staticmethod
+    def _approval_matches(approval, rid, digest):
+        return (isinstance(approval, dict) and set(approval) == APPROVAL_FIELDS
+                and type(approval["request_id"]) is str and approval["request_id"] == rid
+                and type(approval["plan_sha256"]) is str and approval["plan_sha256"] == digest)
+
     def _check_plan(self, plan):
         """Returns (problems, energy_wh). Checks shape, limits and energy."""
         if not isinstance(plan, dict) or set(plan) != {"request_id", "moves", "duration_s"}:
