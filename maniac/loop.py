@@ -9,6 +9,8 @@
 Every gate decision is written to a hash-chained audit trail.
 Returns (BalanceResult, AuditChain). BalanceResult is frozen; approval_granted is always False.
 """
+import json
+
 from maniac.audit import AuditChain, AuditError, verify_chain
 from maniac.balance import close_loop
 from maniac.chain import run_chain
@@ -23,9 +25,21 @@ SAFEGUARDING = "V25 TRI5"
 _NOT_PROVIDED = object()
 
 
+def human_review_detail(decision_record, plan_sha256=None):
+    """Audit detail for a recorded human decision: WHO decided, why, and (when
+    known) the exact plan digest. Stored as canonical JSON inside the hashed
+    "detail" field, so the hash chain and SQLite storage cover it unchanged.
+    Older entries whose detail is just the reason text still verify."""
+    detail = {"operator_id": decision_record.operator_id, "reason": decision_record.reason}
+    if plan_sha256 is not None:
+        detail["plan_sha256"] = str(plan_sha256)
+    return json.dumps(detail, sort_keys=True, separators=(",", ":"))
+
+
 def run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
              fresh_readings, recovery=None, human=None, lessons=None,
-             safety_signals=_NOT_PROVIDED, audit_path=None, audit_expected_head=None):
+             safety_signals=_NOT_PROVIDED, audit_path=None, audit_expected_head=None,
+             plan_sha256=None):
     """Run the offline loop, optionally persisting its audit and assessing TRI5.
 
     Omitted safety_signals preserves the original simulation scope. Explicitly
@@ -37,7 +51,7 @@ def run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
         return _run_loop(supervisor, request, monitor, bundle, clock,
                          expected_value=expected_value, fresh_readings=fresh_readings,
                          recovery=recovery, human=human, lessons=lessons,
-                         safety_signals=safety_signals, chain=chain)
+                         safety_signals=safety_signals, chain=chain, plan_sha256=plan_sha256)
     except AuditError:
         chain = AuditChain()
         why = [("999000 AUDIT", "audit storage could not be verified or persisted")]
@@ -53,7 +67,7 @@ def run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
 
 
 def _run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
-              fresh_readings, recovery, human, lessons, safety_signals, chain):
+              fresh_readings, recovery, human, lessons, safety_signals, chain, plan_sha256=None):
     """
     recovery: optional dict {"repair_note", "request", "bundle"} used only if
               the first pass ends in HOLD.
@@ -104,7 +118,8 @@ def _run_loop(supervisor, request, monitor, bundle, clock, *, expected_value,
     if decision == HUMAN_REVIEW and human is not None:
         try:
             decision_record = result.record_human_decision(*human)
-            chain.append("HUMAN REVIEW", decision_record.decision, decision_record.reason)
+            chain.append("HUMAN REVIEW", decision_record.decision,
+                         human_review_detail(decision_record, plan_sha256))
         except (ValueError, TypeError) as exc:
             chain.append("HUMAN REVIEW", "refused", str(exc))
             steps.append(("HUMAN REVIEW", False, [("HUMAN REVIEW", str(exc))]))

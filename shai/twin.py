@@ -171,7 +171,7 @@ class ShaiTwin:
                                   self._monitor, bundle, self._clock,
                                   expected_value=WALL_DISTANCE_M,
                                   fresh_readings=readings_from_bundle(self._bundle(None)),
-                                  human=human)
+                                  human=human, plan_sha256=digest)
             self._executed.add(rid)
             if human is not None:
                 self._used_approvals.add((rid, digest))   # single-use, even if held
