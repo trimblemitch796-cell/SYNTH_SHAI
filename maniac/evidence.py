@@ -25,6 +25,7 @@ G_VERIFY = "444000 VERIFY / HUMAN APPROVAL"
 
 MAX_AGE = 2.0       # seconds before a sensor reading is stale
 TOLERANCE = 0.05    # 5 % relative disagreement allowed (same as supervisor)
+STUCK_COUNT = 5     # same value this many times in a row = stuck sensor
 
 ALLOWED_FIELDS = {"sensors", "action", "consent", "provenance"}
 
@@ -93,6 +94,16 @@ def _check_sensors(sensors, now, max_age, tolerance, reasons, audit):
             continue
         if ts > now or now - ts > max_age:
             reasons.append((G_OBSERVE_RAW, "sensor %r stale or from the future" % (name,)))
+            continue
+        # Stuck sensor: optional "history" of recent values (oldest first).
+        # If the last STUCK_COUNT values are all identical, the sensor is stuck.
+        history = s.get("history", [])
+        if not isinstance(history, list):
+            reasons.append((G_OBSERVE_RAW, "sensor %r: history is not a list" % (name,)))
+            continue
+        recent = history[-STUCK_COUNT:]
+        if len(recent) == STUCK_COUNT and len(set(map(repr, recent))) == 1:
+            reasons.append((G_OBSERVE_RAW, "sensor %r stuck (same value %d times)" % (name, STUCK_COUNT)))
             continue
         by_quantity.setdefault(s.get("quantity"), {})[name] = value
 
