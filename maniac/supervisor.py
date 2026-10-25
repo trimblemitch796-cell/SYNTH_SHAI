@@ -83,8 +83,13 @@ def ushai_conscience_check(evidence):
 
 
 class Supervisor:
-    def __init__(self, clock, heartbeat_timeout=2.0, tolerance=0.05):
+    def __init__(self, clock, heartbeat_timeout=2.0, tolerance=0.05, replay_db=None):
         self.clock = clock                      # injectable: () -> float seconds
+        # Trusted configuration: the ONE V3.1 replay database used by CHECK
+        # EVIDENCE. Requests cannot choose it. None -> provenance always HOLDs.
+        from maniac.evidence import make_bridge_checker, no_trusted_replay_store
+        self.provenance_checker = (no_trusted_replay_store if replay_db is None
+                                   else make_bridge_checker(replay_db))
         self.heartbeat_timeout = heartbeat_timeout
         self.tolerance = tolerance              # max relative disagreement
         self._seen = set()                      # fingerprints (CHECK LOOP)

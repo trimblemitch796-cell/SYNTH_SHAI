@@ -16,11 +16,15 @@ class Base(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.n = 0
+        self.db = os.path.join(self.tmp.name, "replay.sqlite")
+
+    def twin(self, **kw):
+        """Twin whose replay store is trusted configuration, not request data."""
+        return ShaiTwin(replay_db=self.db, **kw)
 
     def prov(self):
         self.n += 1
-        return {"envelope": signed_envelope("twin-test-challenge-%04d-%s" % (self.n, id(self))),
-                "db_path": os.path.join(self.tmp.name, "replay.sqlite")}
+        return {"envelope": signed_envelope("twin-test-challenge-%04d-%s" % (self.n, id(self)))}
 
     def ask(self, twin, rid="r1", moves=None, secs=2.0, approve=True, approval=None,
             ethics=GOOD, prov="fresh"):
@@ -35,25 +39,26 @@ class TestTwinBasics(Base):
     def test_example_body(self):
         self.assertEqual(HEIGHT_CM, 170)
         self.assertGreaterEqual(len(JOINTS), 5)
-        self.assertTrue(all(v == 0.0 for v in ShaiTwin().joint_angles.values()))
+        self.assertTrue(all(v == 0.0 for v in self.twin().joint_angles.values()))
 
     def test_deterministic(self):
-        self.assertEqual(ShaiTwin(seed=3).sense(), ShaiTwin(seed=3).sense())
+        self.assertEqual(self.twin(seed=3).sense(), self.twin(seed=3).sense())
 
     def test_sensor_readings_fit_maniac(self):
-        t = ShaiTwin()
+        t = self.twin()
         for _ in range(3):
             t.sense()
         bundle = t._bundle(self.prov())
         tri = triangulate(readings_from_bundle(bundle))
         self.assertEqual(tri.outcome, "PASS")
         self.assertEqual({r["source_type"] for r in readings_from_bundle(bundle)}, {"camera", "lidar"})
-        self.assertEqual(check_evidence(bundle, t._clock).overall, "PASS")
+        self.assertEqual(check_evidence(bundle, t._clock,
+                                        provenance_checker=t._supervisor.provenance_checker).overall, "PASS")
 
 
 class TestMotionGate(Base):
     def test_approved_small_motion_moves(self):
-        t = ShaiTwin()
+        t = self.twin()
         r = self.ask(t)
         self.assertEqual(r.outcome, MOVED)
         self.assertEqual(t.joint_angles["elbow_left"], 30)
@@ -62,13 +67,13 @@ class TestMotionGate(Base):
         self.assertLess(t.power["energy_wh"], 2000)
 
     def test_consent_must_cover_entire_motion(self):
-        t = ShaiTwin(consent_seconds=0.05)
+        t = self.twin(consent_seconds=0.05)
         before = t.power
         self.assertNoMove(t, self.ask(t, secs=2.0), "consent")
         self.assertEqual(t.power, before)
 
     def test_consent_rechecked_before_each_motion_step(self):
-        t = ShaiTwin()
+        t = self.twin()
         original_tick = t._tick
         ticks = 0
 
@@ -88,14 +93,14 @@ class TestMotionGate(Base):
         self.assertIn("consent", result.reasons[0])
 
     def test_short_motion_uses_requested_duration(self):
-        t = ShaiTwin(consent_seconds=0.05)
+        t = self.twin(consent_seconds=0.05)
         started = t._clock()
         result = self.ask(t, moves={"elbow_left": 1}, secs=0.04)
         self.assertEqual(result.outcome, MOVED)
         self.assertAlmostEqual(t._clock() - started, 0.04)
 
     def test_motion_can_finish_at_consent_deadline(self):
-        t = ShaiTwin(consent_seconds=2.0)
+        t = self.twin(consent_seconds=2.0)
         result = self.ask(t, secs=2.0)
         self.assertEqual(result.outcome, MOVED)
         self.assertEqual(t._clock(), t._consent_until)
@@ -104,7 +109,7 @@ class TestMotionGate(Base):
         for value in (float("nan"), float("inf"), -float("inf"), True, "1", None, -1, 10 ** 400):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
-                    ShaiTwin(consent_seconds=value)
+                    self.twin(consent_seconds=value)
 
     def assertNoMove(self, t, r, word, outcome=HOLD):
         self.assertEqual(r.outcome, outcome)
@@ -113,35 +118,35 @@ class TestMotionGate(Base):
         self.assertTrue(any(word in x for x in r.reasons), r.reasons)
 
     def test_unapproved_holds(self):
-        t = ShaiTwin(); self.assertNoMove(t, self.ask(t, approve=False), "no human APPROVED")
+        t = self.twin(); self.assertNoMove(t, self.ask(t, approve=False), "no human APPROVED")
 
     def test_rejected_holds(self):
-        t = ShaiTwin()
+        t = self.twin()
         r = self.ask(t, approval={"request_id": "r1", "operator_id": "mitch",
                                   "decision": "REJECTED", "reason": "no"})
         self.assertNoMove(t, r, "")
 
     def test_truthy_approval_holds(self):
-        t = ShaiTwin()
+        t = self.twin()
         r = self.ask(t, approval={"request_id": "r1", "operator_id": "mitch",
                                   "decision": True, "reason": "ok"})
         self.assertNoMove(t, r, "")
 
     def test_approval_for_other_request_holds(self):
-        t = ShaiTwin()
+        t = self.twin()
         r = self.ask(t, approval={"request_id": "other", "operator_id": "mitch",
                                   "decision": "APPROVED", "reason": "ok"})
         self.assertNoMove(t, r, "different request")
 
     def test_request_id_cannot_be_reused(self):
-        t = ShaiTwin()
+        t = self.twin()
         self.assertEqual(self.ask(t).outcome, MOVED)
         r = self.ask(t, moves={"elbow_left": 60})
         self.assertEqual(r.outcome, HOLD)
         self.assertEqual(t.joint_angles["elbow_left"], 30)
 
     def test_replayed_provenance_holds(self):
-        t = ShaiTwin()
+        t = self.twin()
         p = self.prov()
         self.assertEqual(self.ask(t, prov=p).outcome, MOVED)
         r = self.ask(t, rid="r2", moves={"elbow_left": 0}, prov=p)
@@ -156,10 +161,10 @@ class TestMotionGate(Base):
                  ({"elbow_left": "30"}, 2.0, "not a number")]
         for moves, secs, word in cases:
             with self.subTest(moves=moves):
-                t = ShaiTwin(); self.assertNoMove(t, self.ask(t, moves=moves, secs=secs), word)
+                t = self.twin(); self.assertNoMove(t, self.ask(t, moves=moves, secs=secs), word)
 
     def test_malformed_plans(self):
-        t = ShaiTwin()
+        t = self.twin()
         for plan in (None, "go", {}, {"request_id": "x", "moves": {}, "duration_s": 1},
                      {"request_id": "x", "moves": {"elbow_left": 5}, "duration_s": 0},
                      {"request_id": "", "moves": {"elbow_left": 5}, "duration_s": 1},
@@ -170,22 +175,22 @@ class TestMotionGate(Base):
         self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
 
     def test_missing_ethics_or_provenance_holds(self):
-        t = ShaiTwin(); self.assertNoMove(t, self.ask(t, ethics=None), "")
-        t = ShaiTwin(); self.assertNoMove(t, self.ask(t, prov=None), "")
+        t = self.twin(); self.assertNoMove(t, self.ask(t, ethics=None), "")
+        t = self.twin(); self.assertNoMove(t, self.ask(t, prov=None), "")
 
     def test_low_battery(self):
-        t = ShaiTwin(soc=0.10); self.assertNoMove(t, self.ask(t), "LOW_BATTERY")
+        t = self.twin(soc=0.10); self.assertNoMove(t, self.ask(t), "LOW_BATTERY")
 
     def test_not_enough_energy_above_reserve(self):
-        t = ShaiTwin(soc=0.0505)                    # 101 Wh: 1 Wh above reserve
+        t = self.twin(soc=0.0505)                    # 101 Wh: 1 Wh above reserve
         self.assertNoMove(t, self.ask(t, moves={"hip_left": 80, "hip_right": 80}), "reserve")
 
     def test_overheat_safe_lock(self):
-        t = ShaiTwin(temp_c=65.0)
+        t = self.twin(temp_c=65.0)
         self.assertNoMove(t, self.ask(t), "SAFE_LOCK", outcome=SAFE_LOCK)
 
     def test_dropout_mid_motion_safe_stops(self):
-        t = ShaiTwin()
+        t = self.twin()
         t.inject_sensor_dropout("lidar", after_steps=5)
         r = self.ask(t)
         self.assertEqual(r.outcome, HOLD)
@@ -200,31 +205,75 @@ class TestMotionGate(Base):
 
 class TestNoBackdoor(Base):
     def test_joint_angles_is_a_copy(self):
-        t = ShaiTwin()
+        t = self.twin()
         t.joint_angles["elbow_left"] = 90
         self.assertEqual(t.joint_angles["elbow_left"], 0.0)
 
     def test_read_only_views(self):
-        t = ShaiTwin()
+        t = self.twin()
         for name in ("joint_angles", "power", "monitor_state", "safe_stops"):
             with self.subTest(name=name):
                 with self.assertRaises(AttributeError):
                     setattr(t, name, {})
 
     def test_public_methods_never_move(self):
-        t = ShaiTwin()
+        t = self.twin()
         public = [m for m in dir(t) if not m.startswith("_") and callable(getattr(t, m))]
         self.assertEqual(sorted(public), ["inject_sensor_dropout", "request_motion", "safe_stop", "sense"])
         t.sense(); t.safe_stop("test"); t.inject_sensor_dropout("camera")
         self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
 
     def test_result_frozen(self):
-        t = ShaiTwin()
+        t = self.twin()
         r = self.ask(t, approve=False)
         with self.assertRaises(AttributeError):
             r.outcome = MOVED
         with self.assertRaises(AttributeError):
             r.approval_granted = True
+
+
+
+class TestReplayStoreIsTrustedConfig(Base):
+    """Review finding (HIGH): the request must not choose the replay database."""
+
+    def test_same_evidence_with_fresh_db_path_cannot_move_twin_again(self):
+        env = signed_envelope("twin-replay-probe-%s" % id(self))
+        t = self.twin()
+        self.assertEqual(self.ask(t, rid="x1", prov={"envelope": env}).outcome, MOVED)
+        before = t.joint_angles
+        fresh = os.path.join(self.tmp.name, "attacker-fresh.sqlite")
+        r = self.ask(t, rid="x2", moves={"elbow_left": 0}, prov={"envelope": env, "db_path": fresh})
+        self.assertEqual(r.outcome, HOLD)
+        self.assertEqual(t.joint_angles, before)
+        self.assertFalse(os.path.exists(fresh))     # never opened the attacker's DB
+
+    def test_fresh_twin_same_store_rejects_replay(self):
+        env = signed_envelope("twin-replay-probe2-%s" % id(self))
+        self.assertEqual(self.ask(self.twin(), rid="y1", prov={"envelope": env}).outcome, MOVED)
+        t2 = self.twin()
+        r = self.ask(t2, rid="y2", prov={"envelope": env})
+        self.assertEqual(r.outcome, HOLD)
+        self.assertTrue(all(v == 0.0 for v in t2.joint_angles.values()))
+
+    def test_request_db_path_alone_is_refused(self):
+        t = self.twin()
+        fresh = os.path.join(self.tmp.name, "other.sqlite")
+        r = self.ask(t, prov=dict(self.prov(), db_path=fresh))
+        self.assertEqual(r.outcome, HOLD)
+        self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
+        self.assertFalse(os.path.exists(fresh))
+
+    def test_no_trusted_store_holds(self):
+        t = ShaiTwin()                               # no replay_db configured
+        r = self.ask(t)
+        self.assertEqual(r.outcome, HOLD)
+        self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
+
+    def test_bad_trusted_store_config_rejected(self):
+        for bad in ("", 0, True, ["x"]):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    ShaiTwin(replay_db=bad)
 
 
 if __name__ == "__main__":

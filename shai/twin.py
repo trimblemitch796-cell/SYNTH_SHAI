@@ -73,7 +73,7 @@ class MotionResult:
 class ShaiTwin:
     """Simulated 170 cm humanoid. Internal state is private (leading _)."""
 
-    def __init__(self, seed=0, soc=1.0, temp_c=25.0, consent_seconds=600.0):
+    def __init__(self, seed=0, soc=1.0, temp_c=25.0, consent_seconds=600.0, replay_db=None):
         if not _finite_number(consent_seconds) or consent_seconds < 0:
             raise ValueError("consent_seconds must be a finite nonnegative number")
         self._clock = FakeClock()
@@ -81,7 +81,7 @@ class ShaiTwin:
         self._angles = {name: 0.0 for name in JOINTS}  # every joint starts at 0
         self._power = PowerModel(soc=soc, temp_c=temp_c)
         self._monitor = Monitor(self._clock, COMPONENTS)
-        self._supervisor = Supervisor(clock=self._clock)
+        self._supervisor = Supervisor(clock=self._clock, replay_db=replay_db)  # trusted config
         self._history = {s: deque(maxlen=5) for s in ("camera", "lidar")}
         self._dead = set()              # sensors that dropped out
         self._dropout_plan = None       # (sensor, step) - simulation fault hook
@@ -117,7 +117,9 @@ class ShaiTwin:
     def request_motion(self, plan, approval=None, provenance=None, ethical_evidence=None):
         """plan: {"request_id": str, "moves": {joint: target_deg}, "duration_s": number}
         approval: {"request_id", "operator_id", "decision", "reason"} from a human
-        provenance: {"envelope", "db_path"} - freshly signed V3.1 evidence"""
+        provenance: {"envelope"} - freshly signed V3.1 evidence. The replay
+            database is fixed by ShaiTwin(replay_db=...); a request-supplied
+            "db_path" is refused (144 HOLD)."""
         rid = plan.get("request_id") if isinstance(plan, dict) else None
         try:
             problems, energy = self._check_plan(plan)

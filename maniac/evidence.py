@@ -57,13 +57,37 @@ class EvidenceResult:
         return False
 
 
-def bridge_provenance(provenance):
-    """Default provenance checker: the existing V3.1 bridge."""
-    from shai_v31_bridge import evaluate
-    return evaluate(provenance["envelope"], db_path=provenance["db_path"])
+PROVENANCE_FIELDS = {"envelope"}   # the replay store is NEVER chosen by the request
 
 
-def check_evidence(bundle, clock, provenance_checker=bridge_provenance,
+def make_bridge_checker(replay_db):
+    """Provenance checker bound to ONE trusted replay database.
+
+    replay_db comes from trusted configuration (e.g. when the Supervisor or
+    ShaiTwin is constructed), never from request data. Provenance must be
+    exactly {"envelope": ...}; a request that names its own "db_path" (or any
+    other field) is refused, so it fails closed to 144 HOLD.
+    """
+    import os
+    if not isinstance(replay_db, (str, os.PathLike)) or not os.fspath(replay_db):
+        raise ValueError("replay_db must be a non-empty path from trusted configuration")
+    trusted_db = os.fspath(replay_db)
+
+    def checker(provenance):
+        if not isinstance(provenance, dict) or set(provenance) != PROVENANCE_FIELDS:
+            return "HOLD: provenance must be exactly {'envelope'}; replay store is not request-selectable"
+        from shai_v31_bridge import evaluate
+        return evaluate(provenance["envelope"], db_path=trusted_db)
+    checker.replay_db = trusted_db
+    return checker
+
+
+def no_trusted_replay_store(provenance):
+    """Default: no replay store configured -> provenance can never pass."""
+    return "HOLD: no trusted replay store configured"
+
+
+def check_evidence(bundle, clock, provenance_checker=no_trusted_replay_store,
                    max_age=MAX_AGE, tolerance=TOLERANCE):
     """Run all four checks. Every problem is collected; any problem = HOLD."""
     reasons, audit = [], []
@@ -155,7 +179,7 @@ def _check_permissions(action, consent, now, reasons, audit):
 def _check_provenance(provenance, checker, reasons, audit):
     audit.append(G_RECEIVE + ": provenance checked")
     try:
-        verdict = checker(provenance)
+        verdict = checker(provenance) if checker is not None else None
     except Exception:
         verdict = None
     if verdict != "REVIEW_REQUIRED":       # exactly this string, nothing else

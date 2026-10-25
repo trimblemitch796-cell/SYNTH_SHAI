@@ -74,7 +74,7 @@ class Scenario:
             ],
             "action": "move_arm",
             "consent": {"allowed_actions": ["move_arm"], "expires_at": NOW + 60},
-            "provenance": {"envelope": signed_envelope("maniac-simulation-challenge-" + name), "db_path": db_path},
+            "provenance": {"envelope": signed_envelope("maniac-simulation-challenge-" + name)},
         }
         self.request = {
             "request_id": "sim-" + name,
@@ -88,7 +88,7 @@ class Scenario:
             "evidence_verdict": "REVIEW_REQUIRED",
             "ethical_evidence": EthicalEvidence(True, True, True, False, False, True),
         }
-        self.supervisor = Supervisor(clock=self.clock)
+        self.supervisor = Supervisor(clock=self.clock, replay_db=db_path)
         self.db_path = db_path
         self.loop = None          # set by a loop scenario to run the whole loop
         self.twin_case = None     # set by a SHAI twin scenario
@@ -125,7 +125,7 @@ def cam(s):
 
 def replay(s):
     # Use the evidence once (accepted), then submit the very same evidence again
-    check_evidence(copy.deepcopy(s.bundle), s.clock)
+    check_evidence(copy.deepcopy(s.bundle), s.clock, provenance_checker=s.supervisor.provenance_checker)
 
 
 def tamper(s):
@@ -209,7 +209,7 @@ def twin(kind):
             from shai.twin import ShaiTwin            # imported here: shai imports maniac
             kw = {"soc": 0.10} if kind == "low_battery" else {}
             kw.update({"temp_c": 65.0} if kind == "overheat" else {})
-            t = ShaiTwin(seed=7, **kw)
+            t = ShaiTwin(seed=7, replay_db=s.db_path, **kw)
             before = t.joint_angles
             rid = "twin-" + kind
             target = 200 if kind == "over_limit" else 30
@@ -222,8 +222,7 @@ def twin(kind):
                 approval = dict(approval, request_id="twin-some-other-request")
             if kind == "dropout":
                 t.inject_sensor_dropout("lidar", after_steps=5)
-            prov = {"envelope": signed_envelope("maniac-twin-challenge-" + kind),
-                    "db_path": s.db_path}
+            prov = {"envelope": signed_envelope("maniac-twin-challenge-" + kind)}
             r = t.request_motion(plan, approval, prov, GOOD_ETHICS)
             assert r.approval_granted is False
             moved = t.joint_angles != before
