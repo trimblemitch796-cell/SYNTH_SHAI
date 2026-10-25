@@ -89,11 +89,13 @@ class Supervisor:
         self._held_ids = set()                  # request ids that ended in HOLD
 
     # ---------------------------------------------------------------
-    def evaluate(self, request):
+    def evaluate(self, request, monitor_snapshot=None):
+        """monitor_snapshot (optional): Monitor.snapshot(); anything but
+        state MONITOR means 144 HOLD."""
         audit = []
         rid = request.get("request_id") if isinstance(request, dict) else None
         try:
-            reason = self._walk(request, audit)
+            reason = self._walk(request, audit, monitor_snapshot)
             if reason is None:
                 audit.append(CONSEQUENCE_REVIEW + ": EVIDENCE SUFFICIENT")
                 audit.append(Gate.VERIFY.value)
@@ -131,7 +133,7 @@ class Supervisor:
         return result
 
     # ---------------------------------------------------------------
-    def _walk(self, req, audit):
+    def _walk(self, req, audit, monitor_snapshot=None):
         """Return None if everything passed, else the HOLD reason."""
         def fail(msg):
             raise HoldError(msg)
@@ -177,6 +179,11 @@ class Supervisor:
                 fail("provenance failed or missing (evidence verdict %r)" % (req["evidence_verdict"],))
 
             # MONITOR SYSTEM: heartbeat / watchdog / faults
+            if monitor_snapshot is not None:
+                if not isinstance(monitor_snapshot, dict) or monitor_snapshot.get("state") != "MONITOR":
+                    state = monitor_snapshot.get("state") if isinstance(monitor_snapshot, dict) else None
+                    why = monitor_snapshot.get("reason") if isinstance(monitor_snapshot, dict) else "bad snapshot"
+                    fail("monitor state %s: %s" % (state, why))
             now = self.clock()
             beats = req["heartbeats"]
             if not isinstance(beats, list) or not beats:
