@@ -1,5 +1,15 @@
 # Release and security checklist
 
+## Status reconciliation — 26 October 2026 (issues #9, #10 and #21)
+
+This section supersedes *only the historical status entries* below where later evidence has changed; retain the original audit details as a dated record.
+
+- **#9 public beta:** PR #26 merged with reported passing exact-head GitHub Actions: [verification](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40154046508) (288 tests), [V3.1 CATHARSIS](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40154046555), and [release security](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40154046634) (bounded history and dependency scanners). PR #27 merged action pinning, Dependabot configuration and scope disclaimer. `docs/BUILD_STATUS.md` records branch protection and private vulnerability reporting as enabled on 25 October. These records do **not** verify CI for the latest `main` commit. Recheck current branch settings and latest exact-head runs before closing #9. Dependabot alert/update settings, personal commit email history, privacy review, and release-specific approvals require owner verification.
+- **#10 adversarial challenge:** Existing replay, malformed-input, consent and HOLD regressions cover named synthetic cases; no exhaustive adversarial/security guarantee is established. Leave open for third-party reproducible counterexamples, including cross-host replay, compromised storage, colluding evidence sources, corrupted audit checkpoints, and harmful/benign classification calibration. Sensitive findings belong in private vulnerability reporting.
+- **#21 independent review:** PR #33 merged the [assessor handoff](INDEPENDENT_REVIEW_HANDOFF.md). That is preparation, **not** completion of an external cybersecurity or child-safeguarding assessment. Keep open until independent written reports, remediation and retests exist. No reviewer engagement has been verified here.
+- **Current release gate:** `144 HOLD` on consequential deployment. Owner must confirm settings, external reviewer appointments and explicit `444000` release decision. Do not close any of the above issues based solely on this documentation update.
+
+
 Reviewed 25 October 2026. Baseline: `main` at
 `ef1ffd22c210614dffaa9087b695b21f9efab5b7` (PR #25 merged).
 
