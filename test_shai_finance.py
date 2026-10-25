@@ -27,6 +27,13 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(reconcile(600,600,False,True)['status'],'HOLD_REFERENCE_MISMATCH')
     def test_amount_mismatch(self):
         self.assertEqual(reconcile(600,500,True,True)['status'],'HOLD_AMOUNT_MISMATCH')
+    def test_reject_text_confirmation_flags(self):
+        for ref, settled in ((True, "False"), ("False", True), (1, True), (True, None)):
+            with self.subTest(ref=ref, settled=settled):
+                with self.assertRaises(ValueError):
+                    reconcile(600, 600, ref, settled)
+    def test_unconfirmed_exact_amount_never_matches(self):
+        self.assertEqual(reconcile(600, 600, True, False)['status'], 'HOLD_UNCONFIRMED')
     def test_reconciled(self):
         self.assertEqual(reconcile(600,600,True,True)['status'],'MATCHED')
     def test_wellbeing_unknowns(self):
