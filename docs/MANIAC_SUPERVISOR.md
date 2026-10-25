@@ -111,3 +111,30 @@ m.heartbeat("camera"); m.heartbeat("lidar"); m.kick()   # -> State.MONITOR
 Malformed bundles, unknown or missing fields, and any crash also give `144 HOLD`.
 The supervisor can use it like this: `supervisor.evaluate(request, evidence_result=check_evidence(...))`. Anything but a
 real `PASS` result gives `144 HOLD`.
+
+## MANIAC_SIMULATION (`maniac/simulation.py`)
+
+> Offline simulation only: no hardware, no network, no real sleeps. The fake clock is moved by hand,
+> and the signing keys come from fixed seeds, so every run gives the same results.
+
+Each scenario builds a clean setup and injects **one** fault, or several for `several_faults`. It then runs
+the real chain: `Monitor` -> `check_evidence` (with the real V3.1 bridge) -> `Supervisor`.
+
+```bash
+python3 -m maniac.simulation     # prints a table; exit code 1 if any scenario fails
+```
+
+| Scenario | Expected |
+| --- | --- |
+| baseline (clean) | HUMAN_REVIEW (never approval) |
+| dead_heartbeat, watchdog_timeout | 144 HOLD (monitor) |
+| stuck_sensor (same value 5 times in a row), out_of_range, nan_reading, inf_reading, stale_reading | 144 HOLD (222 OBSERVE RAW) |
+| contradiction, single_source | 144 HOLD (555000 TRIANGULATE) |
+| missing_consent, expired_consent, action_outside_consent | 144 HOLD (444000 VERIFY / HUMAN APPROVAL) |
+| forged_provenance, tampered_provenance, replayed_evidence | 144 HOLD (777000 RECEIVE EVIDENCE) |
+| malformed_input, several_faults | 144 HOLD |
+| repeated_fault (3 times) | SAFE_LOCK |
+
+**Stuck sensor:** a sensor reading may include a `history` list of recent values. If the last 5 values
+are all exactly the same, CHECK EVIDENCE gives `144 HOLD`. `run_all()` returns a report for each scenario
+with its name, the injected fault, the expected and actual outcome, the reason and pass/fail.

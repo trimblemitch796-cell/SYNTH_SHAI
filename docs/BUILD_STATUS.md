@@ -12,17 +12,16 @@ This is an **offline software-prototype** progress record, not a declaration tha
 - PR #8: public research-beta contribution/security documentation merged.
 - PR #11: MANIAC supervisor core and USHAI CATHARSIS gate merged.
 - PR #12: offline MANIAC monitor system merged.
-- PR #13: supervisor numeric-input and recovery-ID hardening **proposed in draft**; **not merged** at this review.
+- PR #13: supervisor numeric-input and recovery-ID hardening merged (9 adversarial tests).
+- PR #14: offline MANIAC CHECK EVIDENCE merged.
+- MANIAC_SIMULATION (step 4): offline fault injector, proposed in the `maniac-simulation` PR; not merged at this review.
 
-## Current PR #13
-- Branch: `hardening/maniac-ushai-v31-gates`
-- Changes: reject non-finite sensor values, bounds, limits, heartbeats and clocks; reject malformed request IDs; add nine adversarial regression-test methods.
-- Status: source/tests present on branch. **Passing CI for this head commit has not been independently confirmed**. Do not merge until checks and review are completed.
+## Current test count
+`python3 -m unittest discover -v` on branch `maniac-simulation`: **121 tests, all passing** (local run, 25 October 2026).
 
 ## Outstanding release gates (144 HOLD)
-- [ ] Run the full `python -m unittest discover -v` test suite on PR #13 and record the exact commit + results.
 - [ ] Assess concurrency, duplicate requests, replay and SQLite persistence across restarts.
-- [ ] Verify MANIAC + USHAI + V3.1 evidence-bridge integration with adversarial synthetic scenarios.
+- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 19 scenarios). USHAI is covered only by its fixed baseline input.
 - [ ] Review trust-key provisioning, source independence and approval/consent provenance.
 - [ ] Review public repo and git history for secrets, private data and licensing.
 - [ ] Obtain independent security and hazard review before consequential applications.
