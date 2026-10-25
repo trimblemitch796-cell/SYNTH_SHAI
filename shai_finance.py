@@ -71,6 +71,8 @@ def repayment_schedule(principal,annual_rate_percent,payment_monthly,max_months=
 
 def reconcile(expected,recorded,reference_matches,settlement_confirmed):
     """Unknown/uncertain settlements never produce an instruction to resend."""
+    if type(reference_matches) is not bool or type(settlement_confirmed) is not bool:
+        raise ValueError('Confirmation and reference flags must be Boolean')
     e=nonnegative(expected); r=nonnegative(recorded)
     if not settlement_confirmed:
         return {'status':'HOLD_UNCONFIRMED','difference':str(e-r),'action':'Verify status with authorised bank channel; do not retry automatically'}
