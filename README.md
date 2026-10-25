@@ -131,7 +131,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-**Local verification, 25 October 2026:** `python3 -m unittest discover -q` passes **279 tests**, and `python3 -m maniac.simulation` passes **33/33 scenarios**. Coverage includes finance, evidence and replay gates, MANIAC/USHAI, recovery and loop closure, SHAI twin/power, V25 TRI5 and Super Tool V1, including durable-audit, loop-level safeguarding and power/consent regressions. These local results do not establish a GitHub Actions result or independent validation; rerun the commands for the revision under review.
+**Local verification, 25 October 2026:** `python3 -m unittest discover -q` passes **288 tests**, and `python3 -m maniac.simulation` passes **33/33 scenarios**. Coverage includes finance, evidence and replay gates, MANIAC/USHAI, recovery and loop closure, SHAI twin/power, V25 TRI5 and Super Tool V1, including durable-audit, loop-level safeguarding, power/consent and release-security regressions. These local results used the workspace's preinstalled cryptography 50.0.0; installation of the new exact dependency lock remains pending CI. Local results do not establish a GitHub Actions result or independent validation; rerun the commands for the revision under review.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -141,7 +141,7 @@ Merged into `main` on 25 October 2026 (PR #2), `verification_v3.py` implements a
 
 `verification_v3_1.py` adds a strict-scope authenticated evidence gate with durable (local SQLite) replay protection, tested by `test_verification_v3_1.py`. `REVIEW_REQUIRED` is not approval. These files are now on `main`; merging them does **not** replace the independent review described above.
 
-`main` declares the Python dependency `cryptography>=43,<47` in `requirements.txt`.
+`requirements.txt` includes the exact, hash-checked dependency set in `requirements-lock.txt`: cryptography 50.0.0, cffi 2.1.1 and pycparser 3.12. See [third-party notices](THIRD_PARTY_NOTICES.md) for the dependency upgrade and license evidence.
 
 ### 5.3 MANIAC, USHAI and V25 TRI5 (offline simulation on `main`)
 
@@ -288,7 +288,7 @@ You can also run the financial tests directly:
 python3 -m unittest -v test_shai_finance.py
 ```
 
-The V3.1 tests are now on `main` and run with the commands above (or directly with `python3 -m unittest -v test_verification_v3_1.py`). Treat dependency installation as a software supply-chain action; pin and audit packages before deployment. No real-world connections are needed for the described offline tests.
+The V3.1 tests run with the commands above (or directly with `python3 -m unittest -v test_verification_v3_1.py`). Installation uses the committed wheel-only hash lock. CI separately checks current dependency advisories and redacted reachable-history secrets. No real-world connections are needed by the offline prototype itself. See the [release/security checklist](docs/RELEASE_SECURITY_CHECKLIST.md) for exact evidence and remaining owner/independent-review tasks.
 
 The main loop defaults to an in-memory audit. Optional `audit_path="audit.sqlite"` stores a verified local SQLite chain;
 `audit_expected_head` checks an independently retained checkpoint on reopen. Optional `safety_signals` connects V25 TRI5
@@ -314,13 +314,15 @@ Current green CI belongs primarily in **stage 3 for the checks actually executed
 - Inventory files and tests across branches; merge only reviewed, intentional changes.
 - Audit V3.1 signature and evidence checks, including replay, malformed input, trust boundaries and compromised-key scenarios.
 - Extend HOLD/approval tests against urgency, confidence inflation, and conflicting observations.
-- Improve test coverage reporting and pin dependencies for reproducibility.
+- Improve test coverage reporting and keep the hash-locked dependency set and advisory checks current.
 - Separate future robot, finance and infrastructure validation plans into self-contained modules with explicit safety cases.
 - Obtain independent domain-specific review before any live financial, physical, or public-facing high-risk feature.
 
 ## 10. Security, privacy, and responsible contributions
 
 Never commit passwords, access tokens, private keys, personal banking data, sensitive personal records, or information belonging to children. Use synthetic fixtures wherever possible. Keep logs minimal and scoped; obtain meaningful consent before using real records. Keep physical actuation and external network side effects disabled in local demos.
+
+Release/security evidence and owner actions are tracked in [docs/RELEASE_SECURITY_CHECKLIST.md](docs/RELEASE_SECURITY_CHECKLIST.md); the [trust-boundary review](docs/TRUST_BOUNDARIES.md) distinguishes checked evidence from caller assertions.
 
 For contributions, propose a small, inspectable change with its motivation, a reproducible test, negative/failure cases, risks, and rollback plan. Submit by pull request; human review is required before merge. Report security vulnerabilities privately rather than publishing working exploit secrets in issues.
 

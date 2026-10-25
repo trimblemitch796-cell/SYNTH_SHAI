@@ -1,1 +1,2 @@
-cryptography>=43,<47
+# Exact, hash-checked runtime/test dependencies (CPython 3.11).
+-r requirements-lock.txt

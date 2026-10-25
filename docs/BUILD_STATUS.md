@@ -24,40 +24,40 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 - PR #23: Super Tool V1 offline ASK / CHECK / BUILD starter merged.
 - Step 7: SHAI digital twin + ELO-ECTRIC power model are present on `main`. Software only, illustrative numbers, **not hardware-ready**.
 
-## Offline completion work in this change
+## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
 - [x] Optional V25 TRI5 assessment in `run_loop`, before any recorded human decision; a prior HOLD is preserved.
 - [x] Regression coverage for invalid power inputs and simulated motion exceeding the consent window.
 - [x] Keep human `REJECTED` decisions conservative: `UNBALANCED` and `144 HOLD`.
 
-These changes are proposed for maintainer review; this record does not claim they have merged or that a new CI run has passed.
+PR #25 merged at `ef1ffd22c210614dffaa9087b695b21f9efab5b7`. Its post-merge verification workflow passed with 279 tests. The next security-hardening change adds nine more local regressions, dependency locking, CI history/advisory scans and an evidence-based release checklist; its exact-head CI must be checked separately.
 
 ## Reproduce verification
 ```sh
 python3 -m unittest discover -v
 python3 -m maniac.simulation
 ```
-Local verification on 25 October 2026 passed **279 tests** and **33/33 simulation scenarios**. The baseline (`84bf0b7`, PR #24 merged) passed 243 tests before these changes. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
+Local verification of the security-hardening candidate on 25 October 2026 passed **288 tests** and **33/33 simulation scenarios**. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
 
 ## Next step
-Review the completed offline changes, then obtain independent outside review (see issue #21). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
+Review the release/security hardening and exact-head CI, enable/confirm private reporting and branch protection, then obtain independent outside review (see issue #21 and [the release checklist](RELEASE_SECURITY_CHECKLIST.md)). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
 
 ## Public beta audit (issue #9)
-- **Audited:** commit `ef1ffd2` on 25 October 2026. The audit was read-only.
+- **Audited:** commit `ef1ffd2` on 25 October 2026. The audit was read-only, and it complements [the release checklist](RELEASE_SECURITY_CHECKLIST.md).
 - **Secrets:** gitleaks found nothing across all 83 commits on every branch and PR. Pattern searches found no keys, tokens, passwords, `.env` files, phone numbers or addresses in any file.
 - **Files:** no large or binary files. One old `test_results.txt` (finance test output only) was removed in `445b660`.
-- **CI:** read-only token permissions, no `pull_request_target`, no secrets, and test failures fail the job. Actions are now pinned to commit SHAs, and Dependabot config has been added.
-- **Still pending, because Mitch must change these GitHub settings himself:**
-  - [ ] branch protection on `main`
-  - [ ] private vulnerability reporting
-  - [ ] Dependabot alerts and security updates
-  - [ ] commit email privacy: the personal email appears as the author on past commits
+- **CI:** read-only token permissions, no `pull_request_target`, no secrets, and test failures fail the job. Actions were SHA-pinned in PR #26. A weekly Dependabot config is added in PR #27.
+- **GitHub settings** (read via the API on 25 October 2026):
+  - [x] branch protection on `main`: requires a PR and 4 checks
+  - [x] private vulnerability reporting: enabled
+  - [ ] Dependabot alerts and security updates: still off, and Mitch must turn them on
+  - [ ] commit email privacy: the personal email appears as the author on past commits, and Mitch can hide it for future commits
 
 ## Outstanding release gates (144 HOLD)
 - [ ] Complete the broader concurrency and replay assessment. Local single-database duplicate/reopen cases are tested in PR #19; the optional audit store adds local transaction and stale-writer checks. Cross-device replay and distributed audit integrity are not established.
 - [x] MANIAC + V3.1 evidence-bridge synthetic integration scenarios exist (`python3 -m maniac.simulation`, including full-loop recovery and SHAI twin). Re-run on the reviewed revision; USHAI is covered only by its fixed baseline input.
 - [ ] Review trust-key provisioning, source independence and approval/consent provenance.
-- [ ] Review public repo and git history for secrets, private data and licensing.
+- [ ] Finish the release content/history review: a targeted scan of 150 verified blobs across five visible branches found no common credential patterns; specialist history CI, private-record review and distribution-specific licensing remain distinct checks. See [the release checklist](RELEASE_SECURITY_CHECKLIST.md).
 - [ ] Obtain independent security and hazard review before consequential applications.
 
 ## Mandatory boundaries

@@ -6,6 +6,7 @@ is not approval. SQLite replay storage is local and requires protected access.
 import re
 import sqlite3
 from collections.abc import Mapping
+from contextlib import closing
 from pathlib import Path
 from verification_v3 import verify_result as verify_v3, HOLD, REVIEW_REQUIRED
 
@@ -65,16 +66,32 @@ def verify_once(record, *, database_path, trusted_keys, expected_sha256, expecte
     try:
         if not isinstance(database_path, (str, Path)) or not str(database_path):
             return HOLD
-        with sqlite3.connect(str(database_path), timeout=3) as db:
+        path = str(database_path)
+        # Replay protection requires the same persistent file across requests.
+        # Refuse SQLite's transient store and URI forms rather than guessing
+        # whether a caller-provided URI will actually retain challenges.
+        if path == ':memory:' or path.lower().startswith('file:'):
+            return HOLD
+        with closing(sqlite3.connect(path, timeout=3)) as db, db:
             db.execute('BEGIN IMMEDIATE')
             db.execute('CREATE TABLE IF NOT EXISTS used_challenges (challenge TEXT PRIMARY KEY)')
+            columns = db.execute('PRAGMA table_info(used_challenges)').fetchall()
+            if (len(columns) != 1 or columns[0][1] != 'challenge'
+                    or columns[0][2].upper() != 'TEXT' or columns[0][5] != 1):
+                db.rollback()
+                return HOLD
             state = verify_result(record, trusted_keys=trusted_keys,
                                   expected_sha256=expected_sha256,
                                   expected_challenge=expected_challenge)
             if state != REVIEW_REQUIRED:
                 db.rollback()
                 return HOLD
-            db.execute('INSERT INTO used_challenges(challenge) VALUES (?)', (record['challenge'],))
+            inserted = db.execute('INSERT INTO used_challenges(challenge) VALUES (?)', (record['challenge'],))
+            present = db.execute('SELECT 1 FROM used_challenges WHERE challenge = ?',
+                                 (record['challenge'],)).fetchone()
+            if inserted.rowcount != 1 or present is None:
+                db.rollback()
+                return HOLD
             db.commit()
             return REVIEW_REQUIRED
     except (sqlite3.Error, ValueError, TypeError, OSError):

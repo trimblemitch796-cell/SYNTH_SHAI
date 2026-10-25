@@ -1,0 +1,75 @@
+# Release and security checklist
+
+Reviewed 25 October 2026. Baseline: `main` at
+`ef1ffd22c210614dffaa9087b695b21f9efab5b7` (PR #25 merged).
+
+**Release decision: HOLD for consequential deployment.** The completed checks
+below support continued offline research. They are not an independent assessment,
+a safeguarding certification, or permission to operate hardware or live accounts.
+
+## Evidence and disposition
+
+| Check | Evidence | Disposition |
+| --- | --- | --- |
+| Main build after PR #25 | [Verification run 40152624706](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40152624706): success; 279 tests; Python 3.11; cryptography 46.0.7 | Confirmed for the named baseline. Recheck the new PR/head. |
+| Visible branch-history inventory | Five branch heads, 83 reachable commits, 63 distinct trees, 150 distinct file blobs; history reached a root on each branch | Completed for those observed branch heads. Tags and unreachable/deleted objects were not available through the connection. |
+| Targeted credential-pattern scan | Exported historical blobs checked against Git blob hashes and scanned for common private-key/token/credential shapes; no matches | Bounded preliminary check. Specialist full-history scanning remains a separate CI check; no claim that all private data or unknown credential formats are absent. |
+| License and dependency notices | MIT project notice present; direct/transitive Python dependency license metadata reviewed; see [notices](../THIRD_PARTY_NOTICES.md) | Source-level check completed. Review all binary/bundled notices before distributing artifacts. |
+| Dependency advisories | Published metadata identifies advisories affecting the baseline cryptography package. This change updates its pin and adds dependency-audit CI | Advisory results are time-sensitive. Require the new dependency audit to pass; do not ignore findings to obtain a green result. |
+| Workflow review | Read-only contents permission, pinned action commits, checkout credentials not retained, shared locked dependency input, separate history/dependency checks | Implemented in this change; inspect exact-head CI before merge. |
+| Evidence/replay failure paths | Local synthetic regressions for persistent replay storage, malformed inputs, finite consent/clock/policy values, and bridge failure handling | 288 local tests and 33/33 simulation scenarios pass. Local Python is 3.12.14 with cryptography 50.0.0, cffi 2.1.1 and pycparser 3.0; exact lock installation was blocked by the workspace proxy, so CI must verify it. |
+| Trust-key provisioning and source independence | [Trust boundary review](TRUST_BOUNDARIES.md) | Documented; production trust establishment is not implemented or validated. |
+| Private vulnerability reporting | Public security pages did not expose a report button; the connection cannot read or change the administrative setting | Unconfirmed. Owner must enable/confirm the private channel before soliciting sensitive reports. |
+| Main-branch protection | Branch listing reports `protected: false`; repository rulesets list is empty; detailed protection read returns permission denied | Owner action required: configure and verify review/check requirements. No settings were changed by this review. |
+| Independent cybersecurity and safeguarding assessment | [Issue #21](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/21) remains open | Required for consequential applications. This assistant's review does not satisfy independence. |
+
+The original [release checklist (#9)](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/9)
+and [adversarial testing invitation (#10)](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/10)
+remain open. This document records bounded evidence rather than closing those issues.
+
+## Reproduce the engineering checks
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -r requirements-lock.txt
+python3 -m unittest discover -v
+python3 -m maniac.simulation
+```
+
+The security workflow runs the dependency advisory audit and redacted history
+scanner. Inspect its job result on the exact candidate commit. A scanner/network
+failure is an incomplete check, not evidence of a clean result. Reports containing
+possible secrets must remain private; do not paste them into public issues or logs.
+
+History scope is the refs available at scan time. Deleted branches, inaccessible
+forks, attachments, Git LFS objects and previously leaked copies need separate
+consideration. No exposed credential was identified in the targeted scan, so no
+credential rotation or history rewrite was performed.
+
+## Owner and independent-review actions
+
+1. Enable or confirm **Private vulnerability reporting** in repository Settings →
+   Security and quality → Advanced Security. Confirm the **Report a vulnerability**
+   button appears on the Advisories page. Keep sensitive findings out of public issues.
+2. Configure protection for `main`: require pull requests, approving human review,
+   passing verification and security jobs, and resolved review conversations; restrict
+   force pushes/deletion and decide explicitly whether administrators may bypass rules.
+3. Arrange the cybersecurity and separate safeguarding assessments scoped in #21.
+   Refresh the assessed commit, agree confidentiality and deliverables, address findings,
+   and record the human release decision. No reviewer was contacted by this task.
+4. Define a trusted key/consent/request adapter and its threat model before extending
+   the offline prototype's authority. Complete distribution-specific license and binary
+   provenance checks before shipping a packaged artifact.
+
+GitHub references: [private reporting](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository),
+[branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
+
+## Acceptance boundary
+
+Source availability, local tests and project-maintained CI do not demonstrate that
+caller assertions are true or that a human is authenticated. Signatures establish
+possession of provisioned keys, not independent observers or real-world consent.
+SQLite replay/audit protection assumes a protected host and retained local files.
+Human rejection and unresolved evidence stay HOLD. No network-enabled application,
+money movement, physical actuation, surveillance or automatic reporting is enabled.
