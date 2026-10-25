@@ -18,8 +18,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from maniac.monitor import Monitor
 from maniac.evidence import check_evidence
+from maniac.chain import run_chain
+from maniac.loop import run_loop
 from maniac.supervisor import Supervisor
-from maniac.triangulate import triangulate, readings_from_bundle
+from maniac.triangulate import readings_from_bundle
 from ushai_catharsis import EthicalEvidence
 from verification_v3 import canonical_bytes, sha256_text
 
@@ -87,16 +89,27 @@ class Scenario:
             "ethical_evidence": EthicalEvidence(True, True, True, False, False, True),
         }
         self.supervisor = Supervisor(clock=self.clock)
+        self.db_path = db_path
+        self.loop = None          # set by a loop scenario to run the whole loop
+
+    def run_full_loop(self):
+        """Whole loop: chain -> (HOLD -> REPAIR -> RECOVERY) -> 222000 -> 111000 -> 999000 -> Δ."""
+        result, _ = run_loop(self.supervisor, self.request, self.monitor, self.bundle, self.clock,
+                             expected_value=10.1,
+                             fresh_readings=self.loop.get("fresh", readings_from_bundle(self.bundle)),
+                             recovery=self.loop.get("recovery"))
+        assert result.approval_granted is False
+        reason = "; ".join("%s: %s" % tuple(r) for r in result.reasons) or "balanced"
+        return result.outcome, "%s - %s" % (result.status, reason)
 
     def run(self):
         """Monitor -> CHECK EVIDENCE -> 555000 TRIANGULATE -> 444000 VERIFY.
         Returns (outcome, reason). The reason lists EVERY layer's problems."""
-        snap = self.monitor.snapshot()
-        if snap["state"] == SAFE_LOCK:
-            return SAFE_LOCK, snap["reason"]
-        evidence = check_evidence(self.bundle, self.clock)
-        tri = triangulate(readings_from_bundle(self.bundle))
-        result = self.supervisor.review(self.request, snap, evidence, tri)
+        if self.loop is not None:
+            return self.run_full_loop()
+        if self.monitor.snapshot()["state"] == SAFE_LOCK:
+            return SAFE_LOCK, self.monitor.snapshot()["reason"]
+        result = run_chain(self.supervisor, self.request, self.monitor, self.bundle, self.clock)
         assert result.approval_granted is False   # never, in any scenario
         reason = "; ".join("%s: %s" % pair for pair in result.reasons) or "evidence sufficient"
         return result.decision, reason
@@ -157,6 +170,30 @@ def several(s):
 
 
 # (name, injected fault description, injector, expected outcome)
+def loop_clean(s):
+    s.loop = {}
+
+
+def _held_then_recover(s, fresh_challenge, fresh_time):
+    """First pass held by a NaN reading; then a repair + recovery attempt."""
+    cam(s)["value"] = float("nan")
+    s.clock.t += 1.0                      # time moves on during the repair
+    for c in ("camera", "lidar"):
+        s.monitor.heartbeat(c)
+    s.monitor.kick()
+    new = copy.deepcopy(s.bundle)
+    new["sensors"][0]["value"] = 10.0
+    for sensor in new["sensors"]:
+        sensor["timestamp"] = fresh_time(s)
+    if fresh_challenge:
+        new["provenance"]["envelope"] = signed_envelope("maniac-simulation-recovery-" + s.name)
+    req = dict(s.request, request_id=s.request["request_id"] + "-recovered",
+               heartbeats=[s.clock.t - 0.2])
+    s.loop = {"recovery": {"repair_note": {"operator_id": "mitch", "reason": "replaced camera"},
+                           "request": req, "bundle": new},
+              "fresh": readings_from_bundle(new)}     # the world after the repair
+
+
 SCENARIOS = [
     ("baseline", "none (clean)", lambda s: None, REVIEW),
     ("dead_heartbeat", "camera heartbeat stops", dead_heartbeat, HOLD),
@@ -179,6 +216,19 @@ SCENARIOS = [
      lambda s: s.bundle["sensors"][1].update(type="camera"), HOLD),
     ("repeated_fault", "fault 'slip' raised 3 times", repeated_fault, SAFE_LOCK),
     ("several_faults", "NaN + wrong action + overheat", several, HOLD),
+    ("loop_clean", "none: full loop", loop_clean, REVIEW),
+    ("loop_recovery_fresh", "NaN, then repair + fresh evidence",
+     lambda s: _held_then_recover(s, True, lambda s: s.clock.t - 0.2), REVIEW),
+    ("loop_recovery_replayed", "NaN, then repair re-using old challenge",
+     lambda s: _held_then_recover(s, False, lambda s: s.clock.t - 0.2), HOLD),
+    ("loop_recovery_stale", "NaN, then repair with old readings",
+     lambda s: _held_then_recover(s, True, lambda s: NOW - 0.5), HOLD),
+    ("loop_no_recovery", "NaN, no repair attempted",
+     lambda s: (cam(s).update(value=float("nan")), loop_clean(s)), HOLD),
+    ("loop_reobserve_mismatch", "world moved after decision (30.0 seen)",
+     lambda s: (loop_clean(s), s.loop.update(fresh=[
+         {"source_id": "camera", "source_type": "camera", "value": 30.0},
+         {"source_id": "lidar", "source_type": "lidar", "value": 30.1}])), HOLD),
 ]
 
 
@@ -200,9 +250,9 @@ def run_all():
 
 def main():
     report = run_all()
-    print("%-24s %-32s %-13s %-13s %s" % ("SCENARIO", "INJECTED FAULT", "EXPECTED", "ACTUAL", "RESULT"))
+    print("%-24s %-40s %-13s %-13s %s" % ("SCENARIO", "INJECTED FAULT", "EXPECTED", "ACTUAL", "RESULT"))
     for r in report:
-        print("%-24s %-32s %-13s %-13s %s" % (r["name"], r["fault"], r["expected"],
+        print("%-24s %-40s %-13s %-13s %s" % (r["name"], r["fault"], r["expected"],
                                               r["actual"], "pass" if r["passed"] else "FAIL"))
     failed = [r for r in report if not r["passed"]]
     print("\n%d/%d scenarios passed. Offline simulation only - no hardware." %

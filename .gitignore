@@ -20,3 +20,7 @@ htmlcov/
 Thumbs.db
 .idea/
 .vscode/
+
+# MANIAC 111000 COMPARE / LEARN lesson logs (local, offline)
+*.jsonl
+lessons/

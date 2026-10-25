@@ -13,7 +13,9 @@ EXPECTED_CAUSE = {
     "action_outside_consent": "not inside human consent",
     "forged_provenance": "provenance", "tampered_provenance": "provenance",
     "replayed_evidence": "provenance", "malformed_input": "no sensor readings",
-    "same_type_sources": "not independent", "repeated_fault": "SAFE_LOCK", "several_faults": "overheat",
+    "same_type_sources": "not independent", "repeated_fault": "SAFE_LOCK",
+    "loop_recovery_replayed": "new V3.1 challenge", "loop_recovery_stale": "not newer",
+    "loop_no_recovery": "NaN", "loop_reobserve_mismatch": "world does not match", "several_faults": "overheat",
 }
 
 
@@ -31,7 +33,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_every_fault_holds_or_locks(self):
         for name, r in self.report.items():
-            if name == "baseline":
+            if name in ("baseline", "loop_clean", "loop_recovery_fresh"):
                 continue
             with self.subTest(scenario=name):
                 self.assertIn(r["actual"], (HOLD, SAFE_LOCK))
@@ -45,7 +47,14 @@ class TestSimulation(unittest.TestCase):
                 self.assertIn(word, self.report[name]["reason"])
 
     def test_required_faults_are_covered(self):
-        self.assertEqual(set(EXPECTED_CAUSE) | {"baseline"}, {s[0] for s in SCENARIOS})
+        self.assertEqual(set(EXPECTED_CAUSE) | {"baseline", "loop_clean", "loop_recovery_fresh"},
+                         {s[0] for s in SCENARIOS})
+
+    def test_clean_and_recovered_loops_are_balanced(self):
+        for name in ("loop_clean", "loop_recovery_fresh"):
+            with self.subTest(scenario=name):
+                self.assertEqual(self.report[name]["actual"], REVIEW)
+                self.assertTrue(self.report[name]["reason"].startswith("BALANCED"))
 
     def test_several_faults_lists_every_reason(self):
         reason = self.report["several_faults"]["reason"]
