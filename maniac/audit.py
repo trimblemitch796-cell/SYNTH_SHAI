@@ -5,9 +5,10 @@ Stored chains are verified on load and before each transactional append. A stale
 writer must reload instead of overwriting another writer's work. Storage errors
 raise AuditError; callers must HOLD rather than treating them as a valid audit.
 
-Hashes detect changes within a chain, not its authenticity. Deleting a suffix
-(including the whole chain) or rewriting all hashes is undetectable without an
-independently retained expected_head. SQLite durability is local to one database;
+Hashes detect changes within a chain, not its authenticity. SQLite storage keeps
+a count/head anchor, so deleting tail rows alone is detected on load. Deleting
+rows AND editing the anchor, or rewriting all hashes, is still undetectable
+without an independently retained expected_head. SQLite durability is local to one database;
 this is neither a signed audit nor a cross-device log.
 """
 from contextlib import closing
@@ -44,9 +45,13 @@ class AuditChain:
                     conn.execute("BEGIN IMMEDIATE")
                     conn.execute("CREATE TABLE IF NOT EXISTS audit_entries "
                                  "(position INTEGER PRIMARY KEY, payload TEXT NOT NULL)")
+                    conn.execute("CREATE TABLE IF NOT EXISTS audit_anchor "
+                                 "(id INTEGER PRIMARY KEY CHECK (id = 0), count INTEGER NOT NULL, "
+                                 "head TEXT NOT NULL)")
                     self.entries = self._read(conn)
                     if not verify_chain(self.entries, expected_head):
                         raise AuditError("audit checkpoint does not match")
+                    self._check_anchor(conn, self.entries)
             except (sqlite3.Error, OSError, ValueError) as exc:
                 raise AuditError("audit storage unavailable") from exc
         elif not verify_chain(self.entries, expected_head):
@@ -60,6 +65,20 @@ class AuditChain:
             conn.close()
             raise
         return conn
+
+    @staticmethod
+    def _check_anchor(conn, entries):
+        """Stored count/head anchor, updated in the same transaction as each
+        append. Deleting tail rows without also editing the anchor is detected
+        even without expected_head. A pre-anchor database is anchored on first
+        open (trust on first use); expected_head remains the stronger check."""
+        row = conn.execute("SELECT count, head FROM audit_anchor WHERE id = 0").fetchone()
+        head = entries[-1]["hash"] if entries else GENESIS
+        if row is None:
+            conn.execute("INSERT INTO audit_anchor (id, count, head) VALUES (0, ?, ?)",
+                         (len(entries), head))
+        elif tuple(row) != (len(entries), head):
+            raise AuditError("audit anchor mismatch: entries were deleted or replaced")
 
     @staticmethod
     def _read(conn):
@@ -87,8 +106,11 @@ class AuditChain:
                     current = self._read(conn)
                     if current != self.entries:
                         raise AuditError("audit changed; reload before appending")
+                    self._check_anchor(conn, current)
                     conn.execute("INSERT INTO audit_entries (position, payload) VALUES (?, ?)",
                                  (entry["index"], json.dumps(entry, sort_keys=True)))
+                    conn.execute("UPDATE audit_anchor SET count = ?, head = ? WHERE id = 0",
+                                 (len(current) + 1, entry["hash"]))
             except (sqlite3.Error, OSError, ValueError) as exc:
                 raise AuditError("audit append was not confirmed durable") from exc
         self.entries.append(entry)

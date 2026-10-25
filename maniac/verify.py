@@ -41,6 +41,22 @@ def _issue(*args):
     return result
 
 
+_RECORDED = {}   # id(result) -> (weakref to result, decision record, its field values)
+
+
+def decision_intact(result):
+    """True when result.human_decision is exactly what record_human_decision()
+    stored (same object, same fields) - or nothing was recorded and it is None.
+    Detects a forced object.__setattr__ overwrite of the decision."""
+    entry = _RECORDED.get(id(result))
+    if entry is None or entry[0]() is not result:
+        return getattr(result, "human_decision", None) is None
+    _, record, fields = entry
+    current = result.human_decision
+    return (current is record and type(current) is HumanDecision
+            and (current.operator_id, current.decision, current.reason) == fields)
+
+
 def is_genuine(result):
     """True only for a VerifyResult produced by consequence_review()."""
     ref = _GENUINE.get(id(result))
@@ -78,7 +94,7 @@ class VerifyResult:
             raise ValueError("a 144 HOLD cannot be approved; repair and re-verify first")
         if not is_genuine(self):
             raise ValueError("not issued by 444000 VERIFY; run the gates first")
-        if self.human_decision is not None:
+        if self.human_decision is not None or id(self) in _RECORDED and _RECORDED[id(self)][0]() is self:
             raise ValueError("a human decision was already recorded")
         for name, value in (("operator_id", operator_id), ("reason", reason)):
             # type(...) is str rejects True/1/None; strip() rejects "   "
@@ -91,6 +107,10 @@ class VerifyResult:
         # The result is frozen. This method is the ONE place allowed to fill in
         # human_decision, and only once (checked above).
         object.__setattr__(self, "human_decision", decision_record)
+        key = id(self)
+        _RECORDED[key] = (weakref.ref(self, lambda _r, k=key: _RECORDED.pop(k, None)),
+                          decision_record,
+                          (decision_record.operator_id, decision_record.decision, decision_record.reason))
         return decision_record
 
 
