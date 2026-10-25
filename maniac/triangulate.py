@@ -18,7 +18,7 @@ GATE = "555000 TRIANGULATE"
 MIN_SOURCES = 2
 
 
-@dataclass
+@dataclass(frozen=True)   # frozen: fields can't be changed after creation
 class TriangulationResult:
     outcome: str
     value: object = None          # agreed value (median), None on HOLD

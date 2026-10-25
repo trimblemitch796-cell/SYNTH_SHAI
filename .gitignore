@@ -3,3 +3,20 @@ __pycache__/
 
 # Local replay databases
 *.sqlite
+*.pyo
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Tools, editors and OS files
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

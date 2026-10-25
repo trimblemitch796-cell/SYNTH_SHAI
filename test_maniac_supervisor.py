@@ -1,4 +1,3 @@
-import copy
 import unittest
 from maniac.supervisor import Supervisor, Gate, HOLD, HUMAN_REVIEW, USHAI_CONSCIENCE
 from ushai_catharsis import EthicalEvidence

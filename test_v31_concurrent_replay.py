@@ -2,13 +2,13 @@
 import concurrent.futures
 import sqlite3
 import unittest
-from test_verification_v3_1 import CatharsisV31Tests
+import test_verification_v3_1 as v31_tests  # module import, so discover does not run those 15 tests twice
 from verification_v3_1 import HOLD, REVIEW_REQUIRED, verify_once
 
 
 class ConcurrentReplayTests(unittest.TestCase):
     def setUp(self):
-        CatharsisV31Tests.setUp(self)
+        v31_tests.CatharsisV31Tests.setUp(self)
 
     def evaluate(self):
         return verify_once(self.record, database_path=self.database, **self.arguments)

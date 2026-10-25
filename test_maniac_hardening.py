@@ -1,6 +1,4 @@
 """Regression tests for fail-closed MANIAC numeric and consent inputs."""
-import copy
-import math
 import unittest
 
 from maniac.supervisor import HOLD, HUMAN_REVIEW, Supervisor

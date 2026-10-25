@@ -14,7 +14,7 @@ The supervisor can only ever answer "144 HOLD" or "HUMAN_REVIEW".
 approval_granted is always False: only a human can approve.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 import hashlib
 import json
@@ -58,16 +58,17 @@ class HoldError(Exception):
     """Raised inside the walk; always turned into 144 HOLD."""
 
 
-@dataclass
+@dataclass(frozen=True)   # frozen: fields can't be changed after creation
 class Result:
     request_id: object
     decision: str
     reason: str
     audit: list = field(default_factory=list)
-    approval_granted: bool = False  # never True
 
-    def __post_init__(self):
-        self.approval_granted = False
+    @property
+    def approval_granted(self):
+        """Always False. A read-only property, so it can never be set to True."""
+        return False
 
 
 def ushai_conscience_check(evidence):
@@ -143,8 +144,8 @@ class Supervisor:
             return Result(nid, HOLD, "recovery needs a new request id and fresh evidence",
                           [Gate.REPAIR.value, Gate.RECOVERY.value, Gate.HOLD.value])
         result = self.evaluate(new_request)
-        result.audit = [Gate.REPAIR.value, Gate.RECOVERY.value] + result.audit
-        return result
+        # Result is frozen, so build a new one with the repair steps in front
+        return replace(result, audit=[Gate.REPAIR.value, Gate.RECOVERY.value] + result.audit)
 
     # ---------------------------------------------------------------
     def _walk(self, req, audit, monitor_snapshot=None, evidence_result=None):
