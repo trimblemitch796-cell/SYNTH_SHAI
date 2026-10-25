@@ -7,6 +7,8 @@
 
 **Project status (25 October 2026):** Active research and development. The repository contains offline Python prototypes, verification logic, automated tests, and exploratory designs. Passing CI does **not** mean that SYNTH_SHAI is an independently validated general AI, conscious system, deployable robot, licensed financial service, or operational safety controller.
 
+**Public research code only:** SYNTH_SHAI is not a hosted AI service, not a financial adviser, and not an autonomous robotics controller.
+
 ## 1. Mission
 
 SYNTH_SHAI is a long-term, human-governed research and engineering project exploring how helpful AI can combine useful reasoning with *explicit consent, evidence checks, uncertainty awareness, contradiction detection, safe recovery, and human accountability*.

@@ -1,0 +1,12 @@
+# Dependabot: weekly update checks for Python packages and GitHub Actions.
+# Alerts/security updates also need to be switched on in the repo settings.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
