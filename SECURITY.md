@@ -16,3 +16,9 @@ Include version/commit, impact, a minimal sanitized reproduction, and whether re
 - No unsolicited live system probing, credential testing or social engineering.
 
 Before enabling public visibility, the maintainer should review repository content **and commit history** for secrets and private information. Removing a secret in a later commit does not remove it from history; rotate exposed credentials and clean history appropriately.
+
+## Review evidence and maintainer setup
+
+The [release/security checklist](docs/RELEASE_SECURITY_CHECKLIST.md) records the assessed revision, bounded history/dependency evidence, and remaining owner actions. [Trust boundaries](docs/TRUST_BOUNDARIES.md) describe what caller-supplied keys, consent and operator text do not establish.
+
+Private reporting was not confirmed by this review. The maintainer should enable or verify **Private vulnerability reporting** under Settings → Security and quality → Advanced Security, and confirm the report button on the Advisories page. Public issue threads are not a private reporting channel.

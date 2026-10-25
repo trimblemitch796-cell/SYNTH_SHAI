@@ -45,7 +45,7 @@ def main():
             raise ValueError('Input exceeds 1.2MB')
         envelope = json.loads(args.input.read_text(encoding='utf-8'))
         result = evaluate(envelope, db_path=args.replay_db)
-    except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
+    except (OSError, ValueError, UnicodeError, json.JSONDecodeError, RecursionError):
         pass
     print(json.dumps({'decision': result, 'approval_granted': False}, sort_keys=True))
     return 0 if result == REVIEW_REQUIRED else 2

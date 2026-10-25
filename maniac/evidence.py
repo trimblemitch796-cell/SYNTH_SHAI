@@ -32,7 +32,10 @@ ALLOWED_FIELDS = {"sensors", "action", "consent", "provenance"}
 
 def is_real_number(x):
     """True only for a finite int/float. bool is rejected (Python treats True as 1)."""
-    return type(x) in (int, float) and math.isfinite(x)
+    try:
+        return type(x) in (int, float) and math.isfinite(x)
+    except OverflowError:
+        return False
 
 
 def relative_spread(values):
@@ -75,6 +78,12 @@ def check_evidence(bundle, clock, provenance_checker=bridge_provenance,
                             % (sorted(unknown), sorted(missing))))
             return EvidenceResult(HOLD, reasons, audit)
         now = clock()
+        if not is_real_number(now):
+            raise ValueError("clock must be a finite number")
+        if not is_real_number(max_age) or max_age < 0:
+            raise ValueError("max_age must be a finite nonnegative number")
+        if not is_real_number(tolerance) or tolerance < 0:
+            raise ValueError("tolerance must be a finite nonnegative number")
         _check_sensors(bundle["sensors"], now, max_age, tolerance, reasons, audit)
         _check_permissions(bundle["action"], bundle["consent"], now, reasons, audit)
         _check_provenance(bundle["provenance"], provenance_checker, reasons, audit)
@@ -135,7 +144,7 @@ def _check_permissions(action, consent, now, reasons, audit):
         reasons.append((G_VERIFY, "consent missing"))
         return
     expires = consent.get("expires_at")
-    if type(expires) not in (int, float) or now >= expires:
+    if not is_real_number(expires) or now >= expires:
         reasons.append((G_VERIFY, "consent expired or has no expiry"))
     allowed = consent.get("allowed_actions")
     # deny by default: only actions explicitly listed are allowed
