@@ -63,6 +63,15 @@ class Review:
     diagnosis_made: bool = False
     autonomous_dispatch: bool = False
 
+    def __post_init__(self) -> None:
+        # Safety invariants: a human must approve, no diagnosis, no dispatch.
+        if self.human_approval_required is not True:
+            raise ValueError('human_approval_required must be True')
+        if self.diagnosis_made is not False:
+            raise ValueError('diagnosis_made must be False')
+        if self.autonomous_dispatch is not False:
+            raise ValueError('autonomous_dispatch must be False')
+
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2)
 

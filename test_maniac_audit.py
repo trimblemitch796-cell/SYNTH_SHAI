@@ -69,10 +69,15 @@ class TestDurableAudit(unittest.TestCase):
         chain.append("second", "ok")
         checkpoint = chain.head
         self.execute("DELETE FROM audit_entries WHERE position = 1")
-        self.assertEqual(AuditChain(self.path).head, prefix_head)
+        with self.assertRaises(AuditError):          # stored anchor catches tail deletion
+            AuditChain(self.path)
         with self.assertRaises(AuditError):
             AuditChain(self.path, expected_head=checkpoint)
+        # An attacker who also deletes the anchor is only caught by the external checkpoint
+        self.execute("DELETE FROM audit_anchor")
+        self.assertEqual(AuditChain(self.path).head, prefix_head)
         self.execute("DELETE FROM audit_entries")
+        self.execute("DELETE FROM audit_anchor")
         self.assertEqual(AuditChain(self.path).head, GENESIS)
         with self.assertRaises(AuditError):
             AuditChain(self.path, expected_head=checkpoint)
