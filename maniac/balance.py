@@ -31,10 +31,19 @@ class BalanceResult:
         return False
 
 
-def close_loop(decision, steps, chain, human_decision=None, safety_decision=None):
+def close_loop(decision, steps, chain, human_decision=None, safety_decision=None,
+               verify_result=None):
     """decision: HUMAN_REVIEW or 144 HOLD from VERIFY / RECOVERY.
-    steps: list of (gate, ok, reasons) in the order they ran."""
+    steps: list of (gate, ok, reasons) in the order they ran.
+    verify_result: the VerifyResult issued by the real 444000 VERIFY path.
+    BALANCED needs a genuine HUMAN_REVIEW result; a hand-built one HOLDs, and
+    human_decision must be the one recorded on that result."""
+    from maniac.verify import is_genuine
     passed, reasons = [], []
+    if decision == HUMAN_REVIEW:
+        if (not is_genuine(verify_result) or verify_result.decision != HUMAN_REVIEW
+                or (human_decision is not None and human_decision is not verify_result.human_decision)):
+            reasons.append(("444000 VERIFY", "no genuine 444000 VERIFY result; gates were not run"))
     for gate, ok, why in steps:
         if ok is True:
             passed.append(gate)

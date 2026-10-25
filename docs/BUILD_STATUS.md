@@ -27,6 +27,7 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 - Review fix (HIGH): the V3.1 replay database is now fixed by trusted configuration (`Supervisor(replay_db=...)` / `ShaiTwin(replay_db=...)`). Request provenance must be exactly `{"envelope"}`; a request-supplied `db_path` is refused (144 HOLD), and with no configured store provenance always HOLDs.
 - Review fix (HIGH): SHAI twin human approval is bound to the exact motion plan. It must carry `plan_sha256 = plan_digest(plan)` (build with `approval_for(plan, ...)`), is re-checked right before motion, and is single-use. A mismatch, an ID-only approval or a reused approval gives 144 HOLD with no motion.
 - Review fix (MEDIUM): the `HUMAN REVIEW` audit entry now records who decided. Its hashed `detail` is canonical JSON `{operator_id, reason[, plan_sha256]}` and is stored in the opt-in SQLite audit too. A missing or empty operator_id is refused, giving 144 HOLD, never an anonymous decision. Older entries (detail = reason text) still verify.
+- Review fix (MEDIUM): only a `VerifyResult` issued by the real 444000 VERIFY path (`consequence_review`) can record a human decision or reach Δ BALANCE. A hand-built `VerifyResult("HUMAN_REVIEW")`, or a human decision not recorded on that result, gives UNBALANCED / 144 HOLD. This is an in-process guard, not a cryptographic seal.
 
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
@@ -41,7 +42,7 @@ PR #25 merged at `ef1ffd22c210614dffaa9087b695b21f9efab5b7`. Its post-merge veri
 python3 -m unittest discover -v
 python3 -m maniac.simulation
 ```
-Local verification of `main` on 26 October 2026 (after PR #39) passed **382 tests** and **33/33 simulation scenarios**. The security-hardening candidate on 25 October 2026 passed 288 tests. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
+Local verification on 26 October 2026 (with PRs #43 and #44 applied) passed **404 tests** and **33/33 simulation scenarios**. The security-hardening candidate on 25 October 2026 passed 288 tests. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
 
 ## Next step
 Review the release/security hardening and exact-head CI, enable/confirm private reporting and branch protection, then obtain independent outside review (see issue #21 and [the release checklist](RELEASE_SECURITY_CHECKLIST.md)). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.

@@ -193,7 +193,10 @@ class TestAudit(unittest.TestCase):
 class TestBalance(unittest.TestCase):
     def test_balanced_only_when_all_clean(self):
         c = AuditChain(); c.append("x", "ok")
-        r = close_loop("HUMAN_REVIEW", [("222000", True, []), ("111000", True, [])], c)
+        import test_maniac_verify as tmv
+        genuine = tmv.consequence_review(**tmv.layers())   # real 444000 VERIFY result
+        r = close_loop("HUMAN_REVIEW", [("222000", True, []), ("111000", True, [])], c,
+                       verify_result=genuine)
         self.assertEqual((r.status, r.outcome), (BALANCED, "HUMAN_REVIEW"))
         self.assertEqual(r.gates_passed, ("222000", "111000"))
         self.assertEqual(r.audit_head, c.head)
