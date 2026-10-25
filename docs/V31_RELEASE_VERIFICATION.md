@@ -8,7 +8,7 @@ SYNTH_SHAI V3.1 comprises the offline evidence gate, MANIAC supervisor, USHAI CA
 - PR #13 MANIAC input-hardening merged following two successful GitHub Actions workflows.
 - PR #17 offline V25 TRI5 safeguarding advisory gate merged after successful verification workflows.
 - PR #18 MANIAC–USHAI–V25 TRI5 synthetic integration tests merged at commit `17c29bb7048d27e5ac1f3c9e4748bc0064e7aab0` after both configured workflows succeeded.
-- Proposed on this branch: concurrent duplicate-challenge, post-commit replay and corruption regression tests. **Only mark these as passing after GitHub Actions confirms the exact branch/head commit.**
+- PR #19 concurrent duplicate-challenge, post-commit replay and corruption regression tests are present on `main`. New changes require a fresh test run and GitHub Actions verification of the exact reviewed head; earlier results do not verify a later commit.
 
 ## Concurrency/replay test boundaries
 - SQLite `BEGIN IMMEDIATE` and a unique challenge key should prevent duplicate successful accepts *within one local shared database*. Multi-threaded test validates one accepted `REVIEW_REQUIRED` and remaining `144 HOLD` outcomes.

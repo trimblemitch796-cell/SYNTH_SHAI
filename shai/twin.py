@@ -14,16 +14,17 @@ Anything else -> 144 HOLD (or SAFE_LOCK) and nothing moves.
 """
 from collections import deque
 from dataclasses import dataclass
+import math
 import random
 
 from maniac.loop import run_loop
 from maniac.monitor import Monitor
 from maniac.supervisor import Supervisor
 from maniac.triangulate import readings_from_bundle
-from shai.power import PowerModel
+from shai.power import PowerModel, _finite_number
 
 HEIGHT_CM = 170
-DT = 0.1                        # fixed simulation timestep (seconds)
+DT = 0.1                        # maximum simulation timestep (seconds)
 TORQUE_NM_PER_DEG_S = 0.25      # example: estimated torque per deg/s of speed
 WALL_DISTANCE_M = 2.0           # the twin stands 2 m from a wall
 SAFE_STOP_WH = 1.0              # example energy a safe stop needs (from reserve)
@@ -73,6 +74,8 @@ class ShaiTwin:
     """Simulated 170 cm humanoid. Internal state is private (leading _)."""
 
     def __init__(self, seed=0, soc=1.0, temp_c=25.0, consent_seconds=600.0):
+        if not _finite_number(consent_seconds) or consent_seconds < 0:
+            raise ValueError("consent_seconds must be a finite nonnegative number")
         self._clock = FakeClock()
         self._rng = random.Random(seed)                # seeded: same run every time
         self._angles = {name: 0.0 for name in JOINTS}  # every joint starts at 0
@@ -165,6 +168,8 @@ class ShaiTwin:
             return ["request_id must be text"], 0.0
         if type(secs) not in (int, float) or not 0 < secs <= 30:
             return ["duration_s must be a number from 0 to 30"], 0.0
+        if self._clock() + secs > self._consent_until:
+            return ["consent expires before motion completes"], 0.0
         if not isinstance(moves, dict) or not moves:
             return ["moves must name at least one joint"], 0.0
         problems, energy = [], self._power.motion_energy_wh(0, 0, secs)
@@ -188,19 +193,26 @@ class ShaiTwin:
         return problems, energy
 
     def _execute(self, rid, plan, energy, balance):
-        """Move in fixed DT steps. Stop safely the moment anything goes wrong."""
+        """Move in steps no longer than DT. Stop safely when a check fails."""
         start = dict(self._angles)
-        steps = max(1, int(round(plan["duration_s"] / DT)))
+        started_at = self._clock()
+        steps = max(1, math.ceil(plan["duration_s"] / DT))
+        step_seconds = plan["duration_s"] / steps
         if not self._power.draw_task(energy):
             return self._hold(rid, ["energy check failed at start"], balance)
         for i in range(1, steps + 1):
+            step_end = started_at + i * step_seconds
+            if self._clock() >= self._consent_until or step_end > self._consent_until:
+                self.safe_stop("consent expired before next motion step")
+                return MotionResult(rid, HOLD, i > 1,
+                                    ("consent expired before next motion step",), balance)
             if self._dropout_plan and self._dropout_plan[1] == i:
                 self._dead.add(self._dropout_plan[0])
                 self._dropout_plan = None
             for joint, target in plan["moves"].items():
                 self._angles[joint] = start[joint] + (target - start[joint]) * i / steps
-            self._clock.t += DT
-            self._power.cool(DT)
+            self._clock.t = step_end
+            self._power.cool(step_seconds)
             self._tick()
             snap = self._monitor.snapshot()
             if snap["state"] != "MONITOR":

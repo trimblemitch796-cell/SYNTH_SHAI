@@ -23,6 +23,7 @@ class BalanceResult:
     reasons: tuple            # ((gate, text), ...)
     audit_head: str
     human_decision: object = None   # recorded human choice, if any
+    safety_decision: object = None  # optional V25 TRI5 advisory; never approval
 
     @property
     def approval_granted(self):
@@ -30,7 +31,7 @@ class BalanceResult:
         return False
 
 
-def close_loop(decision, steps, chain, human_decision=None):
+def close_loop(decision, steps, chain, human_decision=None, safety_decision=None):
     """decision: HUMAN_REVIEW or 144 HOLD from VERIFY / RECOVERY.
     steps: list of (gate, ok, reasons) in the order they ran."""
     passed, reasons = [], []
@@ -48,4 +49,4 @@ def close_loop(decision, steps, chain, human_decision=None):
     outcome = HUMAN_REVIEW if balanced else HOLD
     chain.append(GATE, status, "; ".join("%s: %s" % r for r in reasons))
     return BalanceResult(outcome, status, tuple(passed), tuple(tuple(r) for r in reasons),
-                         chain.head, human_decision)
+                         chain.head, human_decision, safety_decision)

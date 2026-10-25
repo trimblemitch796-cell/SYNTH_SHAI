@@ -157,7 +157,7 @@ checks **every** layer and collects **all** their reasons, so a human sees the f
 - **RISK / ERROR FOUND** gives `144 HOLD`. The next steps are `1301133 BUILD / REPAIR / REFRAME`, then `666000 RECOVERY`.
 - **EVIDENCE SUFFICIENT** gives `HUMAN_REVIEW`. This is never an approval, and `approval_granted` is always False.
 - Both branches list `222000 RE-OBSERVE`, `111000 COMPARE / LEARN`, `999000 AUDIT` and `Δ BALANCE` as
-  **pending**. They will be built in step 6.
+  **pending** in this standalone result. `run_loop()` executes them as described below.
 
 Only `result.record_human_decision(operator_id, decision, reason)` can approve. `operator_id` and `reason`
 must be non-empty text, and `decision` must be exactly `"APPROVED"` or `"REJECTED"`. True, "yes" and "approved" are all refused.
@@ -175,7 +175,14 @@ problem, for example a monitor fault that the supervisor repeats, VERIFY lists i
 
 [V25 TRI5](V25_TRI5.md) (`v25_tri5.layered_review`) is an **extra conservative safeguarding gate that runs after** the
 MANIAC/USHAI result. It can add `144 HOLD`, `HUMAN_REVIEW` or `URGENT_HUMAN_HELP`, but it never overrides a MANIAC HOLD and
-never approves anything. Nothing in MANIAC changes V25 TRI5's logic.
+never approves anything. `run_loop(..., safety_signals=...)` now applies this gate after VERIFY/recovery and before
+recording a human decision. Omitting `safety_signals` preserves the existing general simulation path and skips this
+assessment; explicitly supplying invalid signals gives HOLD. Supply synthetic `SafetySignals` whenever testing the
+safeguarding path. This does not add an age detector or a real-world safeguarding service.
+
+`BalanceResult.safety_decision` carries the advisory assessment. Immediate danger keeps the main result in HOLD and
+exposes `URGENT_HUMAN_HELP` as advice; an upstream HOLD stays HOLD even when urgent advice is present. Human emergency
+help remains available independently of software. No external reporting or contact occurs.
 
 ## Step 6: closing the loop
 
@@ -195,12 +202,59 @@ both -> 222000 RE-OBSERVE -> 111000 COMPARE / LEARN -> 999000 AUDIT -> Δ BALANC
 | `1301133 BUILD / REPAIR / REFRAME` + `666000 RECOVERY` | `maniac/recovery.py` | Recovery from a HOLD needs a repair note with `operator_id` and `reason`, a **new** request id, readings **newer** than the held ones, and a **new** V3.1 challenge. The monitor must not be in SAFE_LOCK (that needs `human_reset()` first). It then re-runs the full chain. The best possible result is `HUMAN_REVIEW`. |
 | `222000 RE-OBSERVE` | `maniac/observe.py` | After the decision, it takes a fresh triangulated observation. If it doesn't match the expected value within 5 %, the result is HOLD. |
 | `111000 COMPARE / LEARN` | `maniac/learn.py` | Writes each lesson to an append-only JSON-lines log, which `.gitignore` excludes. A HOLD reason seen 2 times is flagged for review and tightens the matching setting to 80 %. **Learning can only make things stricter**: settings are always `min(current, learned)`, and a corrupt log line is itself flagged. |
-| `999000 AUDIT` | `maniac/audit.py` | A SHA-256 hash chain. `verify_chain()` detects edits, deletions and re-ordering. |
+| `999000 AUDIT` | `maniac/audit.py` | A SHA-256 hash chain, in memory by default or optionally persisted in local SQLite. Verification detects inconsistencies within the supplied history; an independently retained head is needed to detect a valid shortened or rewritten history. |
 | `Δ BALANCE` | `maniac/balance.py` | A frozen `BalanceResult` with the outcome, gates passed, reasons and audit head hash. The status is `BALANCED` (outcome `HUMAN_REVIEW`) only when every gate completed cleanly and the chain verifies. Anything else is `UNBALANCED`, which means `144 HOLD`. |
 
 A human `REJECTED` decision, an invalid human decision, no recovery after a HOLD, a failed
-re-observation or a lesson-log failure all give `UNBALANCED`, which means `144 HOLD`. `maniac/chain.py` holds
+re-observation, an audit persistence failure or a lesson-log failure all give `UNBALANCED`, which means `144 HOLD`. `maniac/chain.py` holds
 the shared monitor → evidence → triangulate → verify call used by recovery, the loop and the simulation.
 
 `python3 -m maniac.simulation` now also runs six full-loop scenarios: a clean loop, recovery with fresh evidence,
 recovery that re-uses the old challenge, recovery with old readings, no recovery, and a re-observation mismatch.
+
+
+## Optional local audit persistence
+
+`run_loop(..., audit_path="audit.sqlite")` appends to a local SQLite hash chain and verifies existing entries on reopen.
+Without `audit_path`, each call retains its audit only in memory. The standalone API is
+`AuditChain(path=None, *, expected_head=None)`; disk, malformed-history and stale-writer failures raise `AuditError`.
+SQLite transactions make each append atomic and refuse a stale writer rather than silently replacing another writer's
+entries. `run_loop` converts persistence failures to `UNBALANCED` / `144 HOLD`; the returned failure record is in memory
+because durable recording could not be confirmed.
+
+For example, using the synthetic scenario helper in a temporary directory:
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from maniac.loop import run_loop
+from maniac.simulation import Scenario
+from maniac.triangulate import readings_from_bundle
+from v25_tri5 import SafetySignals
+
+with TemporaryDirectory() as folder:
+    scenario = Scenario("audit-demo", str(Path(folder) / "replay.sqlite"))
+    result, chain = run_loop(
+        scenario.supervisor, scenario.request, scenario.monitor,
+        scenario.bundle, scenario.clock,
+        expected_value=10.1,
+        fresh_readings=readings_from_bundle(scenario.bundle),
+        safety_signals=SafetySignals("unknown", False, False, False, True),
+        audit_path=str(Path(folder) / "audit.sqlite"),
+    )
+    print(result.outcome, result.approval_granted, chain.head)
+```
+
+For a retained database, pass a previously saved, independently trusted head with
+`audit_expected_head=previous_head` when reopening through `run_loop`. The lower-level equivalents are
+`AuditChain(path, expected_head=previous_head)` and `verify_chain(entries, expected_head=previous_head)`.
+Save the new head separately after a successful loop if it will serve as the next checkpoint.
+
+A hash chain is **not authentication**. Without a trusted checkpoint, suffix deletion, complete history removal or a
+fully recomputed replacement can appear valid. A checkpoint stored beside a writable database offers no independent
+protection. Local SQLite does not provide cross-device coordination, host-compromise protection or independent review.
+
+Persistence is opt-in and may retain operator identifiers, decision reasons and other audit details. Use synthetic data
+only in these examples; choose access controls and retention deliberately before storing any real records. Local
+`*.sqlite` files are ignored by git. No log file is created by the default in-memory audit path.

@@ -32,6 +32,43 @@ class TestPower(unittest.TestCase):
     def test_motion_energy(self):
         self.assertAlmostEqual(PowerModel.motion_energy_wh(10, 0.01, 36), 0.1 + power.IDLE_W * 0.01)
 
+    def test_temperature_requires_finite_number(self):
+        for value in (float("nan"), float("inf"), -float("inf"), True, "25", None, 10 ** 400):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    PowerModel(temp_c=value)
+
+    def test_invalid_task_draw_preserves_state(self):
+        for value in (float("nan"), float("inf"), -float("inf"), True, "1", None, -1, 10 ** 400):
+            with self.subTest(value=value):
+                p = PowerModel()
+                before = (p.energy_wh, p.temp_c)
+                self.assertFalse(p.draw_task(value))
+                self.assertEqual((p.energy_wh, p.temp_c), before)
+
+    def test_invalid_reserve_draw_and_cooling_preserve_state(self):
+        for method in ("draw_reserve", "cool"):
+            for value in (float("nan"), float("inf"), -float("inf"), True, "1", None, -1, 10 ** 400):
+                with self.subTest(method=method, value=value):
+                    p = PowerModel()
+                    before = (p.energy_wh, p.temp_c)
+                    with self.assertRaises(ValueError):
+                        getattr(p, method)(value)
+                    self.assertEqual((p.energy_wh, p.temp_c), before)
+
+    def test_motion_energy_rejects_invalid_inputs(self):
+        for value in (float("nan"), float("inf"), -float("inf"), True, "1", None, 10 ** 400):
+            for index in range(3):
+                args = [10, 0.01, 1]
+                args[index] = value
+                with self.subTest(value=value, index=index):
+                    with self.assertRaises(ValueError):
+                        PowerModel.motion_energy_wh(*args)
+        for args in ((10, -1, 1), (10, 1, -1), (1e308, 1e308, 1)):
+            with self.subTest(args=args):
+                with self.assertRaises(ValueError):
+                    PowerModel.motion_energy_wh(*args)
+
     def test_task_never_uses_reserve(self):
         p = PowerModel(soc=0.06)                    # 120 Wh: only 20 above reserve
         self.assertFalse(p.draw_task(50))

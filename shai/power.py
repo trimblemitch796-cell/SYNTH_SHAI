@@ -9,6 +9,17 @@ ALL NUMBERS ARE ILLUSTRATIVE EXAMPLE VALUES, not engineering specs.
   - low battery -> MONITOR fault (144 HOLD)
   - over-temperature -> critical MONITOR fault (SAFE_LOCK)
 """
+import math
+
+
+def _finite_number(value):
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
 
 # ---- EXAMPLE VALUES (illustrative only) -------------------------------
 CAPACITY_WH = 2000.0        # 2 kWh pack
@@ -23,8 +34,10 @@ OVER_TEMP_C = 60.0          # above this -> OVER_TEMP critical fault (SAFE_LOCK)
 
 class PowerModel:
     def __init__(self, soc=1.0, temp_c=AMBIENT_C):
-        if type(soc) not in (int, float) or not 0.0 <= soc <= 1.0:
+        if not _finite_number(soc) or not 0.0 <= soc <= 1.0:
             raise ValueError("soc must be a number from 0 to 1")
+        if not _finite_number(temp_c):
+            raise ValueError("temp_c must be a finite number")
         self._energy_wh = CAPACITY_WH * soc
         self._temp_c = float(temp_c)
 
@@ -48,24 +61,34 @@ class PowerModel:
     @staticmethod
     def motion_energy_wh(degrees, wh_per_degree, seconds):
         """Energy for a motion: per-degree cost + idle draw over the time."""
-        return abs(degrees) * wh_per_degree + IDLE_W * seconds / 3600.0
+        if (not all(_finite_number(v) for v in (degrees, wh_per_degree, seconds))
+                or wh_per_degree < 0 or seconds < 0):
+            raise ValueError("motion inputs must be finite with nonnegative cost and duration")
+        energy = abs(degrees) * wh_per_degree + IDLE_W * seconds / 3600.0
+        if not _finite_number(energy):
+            raise ValueError("motion energy must be finite")
+        return energy
 
     def draw_task(self, wh):
         """Use energy for a task. Refuses (False) if it would touch the reserve."""
-        if type(wh) not in (int, float) or wh < 0 or wh > self.available_for_tasks():
+        if not _finite_number(wh) or wh < 0 or wh > self.available_for_tasks():
             return False
         self._use(wh)
         return True
 
     def draw_reserve(self, wh):
         """Only the safe stop may call this. Uses the reserve if needed."""
-        self._use(min(max(0.0, wh), self._energy_wh))
+        if not _finite_number(wh) or wh < 0:
+            raise ValueError("reserve draw must be a finite nonnegative number")
+        self._use(min(wh, self._energy_wh))
 
     def _use(self, wh):
         self._energy_wh -= wh
         self._temp_c += wh * HEAT_C_PER_WH
 
     def cool(self, seconds):
+        if not _finite_number(seconds) or seconds < 0:
+            raise ValueError("cooling duration must be a finite nonnegative number")
         self._temp_c -= (self._temp_c - AMBIENT_C) * min(1.0, COOL_PER_S * seconds)
 
     def check(self, monitor):

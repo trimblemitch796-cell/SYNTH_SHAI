@@ -124,9 +124,11 @@ class TestLearn(Base):
         path = os.path.join(self.tmp.name, "lessons.jsonl")
         log = LessonLog(path)
         log.record("144 HOLD", "HUMAN_REVIEW", "mismatch", [("555000 TRIANGULATE", "sources contradict")])
-        first = open(path).read()
+        with open(path) as handle:
+            first = handle.read()
         log.record("HUMAN_REVIEW", "HUMAN_REVIEW", "match", [])
-        self.assertTrue(open(path).read().startswith(first))
+        with open(path) as handle:
+            self.assertTrue(handle.read().startswith(first))
         self.assertEqual(len(log.lines()), 2)
         self.assertTrue(json.loads(log.lines()[1])["matched"])
 

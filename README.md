@@ -117,7 +117,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 
 **Repository:** [trimblemitch796-cell/SYNTH_SHAI](https://github.com/trimblemitch796-cell/SYNTH_SHAI)
 
-**Branches:** `main` holds all merged work: V3.1 (PR #2), the bridge (PR #5), MANIAC steps 1–5 and hardening (PRs #11–#16), clean-up (PR #20), V25 TRI5 (PRs #17–#18) and V3.1 concurrent replay tests (PR #19). `maniac-sync-v1` is an unmerged research branch. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the current milestone record.
+**Branches:** `main` holds all merged work: V3.1 (PR #2), the bridge (PR #5), MANIAC steps 1–5 and hardening (PRs #11–#16), clean-up (PR #20), V25 TRI5 (PRs #17–#18), V3.1 concurrent replay tests (PR #19), the full loop (PR #22), Super Tool V1 (PR #23), and the SHAI digital twin/power model. `maniac-sync-v1` is an unmerged research branch. See [docs/BUILD_STATUS.md](docs/BUILD_STATUS.md) for the current milestone record.
 
 ### 5.1 Finance prototype and basic evidence gate
 
@@ -129,7 +129,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-Running `python3 -m unittest discover -v` (25 October 2026) runs **243 tests, all passing**: 16 finance, 7 basic verification, 15 V3.1, 4 V3.1 concurrent replay, 10 V3.1 bridge, 8 USHAI Catharsis, 19 MANIAC supervisor, 9 MANIAC hardening, 14 MANIAC monitor, 14 MANIAC evidence, 9 TRIANGULATE, 21 VERIFY, 29 MANIAC loop (RECOVERY / RE-OBSERVE / LEARN / AUDIT / BALANCE), 11 MANIAC simulation, 21 SHAI twin, 10 ELO-ECTRIC power, 8 V25 TRI5, 9 V25 TRI5 integration and 9 Super Tool V1 tests.
+**Local verification, 25 October 2026:** `python3 -m unittest discover -q` passes **279 tests**, and `python3 -m maniac.simulation` passes **33/33 scenarios**. Coverage includes finance, evidence and replay gates, MANIAC/USHAI, recovery and loop closure, SHAI twin/power, V25 TRI5 and Super Tool V1, including durable-audit, loop-level safeguarding and power/consent regressions. These local results do not establish a GitHub Actions result or independent validation; rerun the commands for the revision under review.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -148,7 +148,7 @@ These modules are **offline simulations that control no hardware**. They only re
 - `ushai_catharsis.py`: USHAI ETHICAL CONSCIENCE (CATHARSIS V1.1), written by Mitch Trimble.
 - `maniac/`: supervisor, MONITOR SYSTEM, CHECK EVIDENCE, 555000 TRIANGULATE, 444000 VERIFY / HUMAN APPROVAL, 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE (`run_loop`) and MANIAC_SIMULATION (`python3 -m maniac.simulation`). See [docs/MANIAC_SUPERVISOR.md](docs/MANIAC_SUPERVISOR.md).
 - `shai/`: SHAI digital twin and ELO-ECTRIC power model. These are **software-only, use illustrative numbers and are not hardware-ready**. Joints move only through MANIAC `run_loop()` plus an explicit human approval. See [docs/SHAI_DIGITAL_TWIN.md](docs/SHAI_DIGITAL_TWIN.md).
-- `v25_tri5.py`: V25 TRI5 child-safeguarding advisory gate, an extra conservative layer after MANIAC/USHAI that never overrides a HOLD. See [docs/V25_TRI5.md](docs/V25_TRI5.md).
+- `v25_tri5.py`: V25 TRI5 child-safeguarding advisory gate, an extra conservative layer after MANIAC/USHAI that never overrides a HOLD. The offline loop supports opt-in assessment via `safety_signals`. See [docs/V25_TRI5.md](docs/V25_TRI5.md).
 - Release evidence and boundaries: [docs/V31_RELEASE_VERIFICATION.md](docs/V31_RELEASE_VERIFICATION.md).
 
 The separate `maniac-sync-v1` branch holds earlier MANIAC sync research and is **not merged**.
@@ -269,9 +269,11 @@ This tree shows `main`. Nothing in it is production-ready.
 
 ## 8. Running the verified-scope Python prototype
 
-On a working copy of the **main** branch, install Python 3.11 and then:
+On a working copy, use Python 3.11 and an isolated environment:
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
 python3 -m pip install -r requirements.txt
 python3 -m unittest discover -v
 python3 -m maniac.simulation
@@ -285,6 +287,12 @@ python3 -m unittest -v test_shai_finance.py
 ```
 
 The V3.1 tests are now on `main` and run with the commands above (or directly with `python3 -m unittest -v test_verification_v3_1.py`). Treat dependency installation as a software supply-chain action; pin and audit packages before deployment. No real-world connections are needed for the described offline tests.
+
+The main loop defaults to an in-memory audit. Optional `audit_path="audit.sqlite"` stores a verified local SQLite chain;
+`audit_expected_head` checks an independently retained checkpoint on reopen. Optional `safety_signals` connects V25 TRI5
+before any human decision. See the [integrated synthetic example and persistence limits](docs/MANIAC_SUPERVISOR.md#optional-local-audit-persistence).
+Persistence may retain caller-supplied operator identifiers and reasons, so use synthetic data in demos. Audit failure
+keeps the loop in HOLD; hash checks do not authenticate a history or prove that a shortened history is complete.
 
 ## 9. Evidence standard and release gates
 

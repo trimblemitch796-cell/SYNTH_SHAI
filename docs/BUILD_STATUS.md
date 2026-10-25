@@ -4,7 +4,7 @@ _Last reviewed: 25 October 2026 (Australia/Brisbane)_
 ## Scope
 This is an **offline software-prototype** progress record, not a declaration that the entire SYNTH_SHAI vision, a physical MANIAC chip, or a public AI service is complete.
 
-**Planning estimate: ~78% of the currently defined V3.1 prototype milestones** (subjective; not based on a weighted, independently validated requirements trace). The remaining 22% is **not** a measured development effort or time estimate.
+Progress is recorded as implemented milestones and outstanding review gates below. There is no validated percentage-complete or delivery-time estimate for the wider research program.
 
 ## Verified repository milestones
 - PR #2: V3.1 evidence-gate work merged.
@@ -22,18 +22,29 @@ This is an **offline software-prototype** progress record, not a declaration tha
 - PR #20: clean-up (docs consistency, read-only result objects, de-duplicated VERIFY reasons) merged.
 - PR #22: step 6, which covers 1301133 BUILD / REPAIR / REFRAME, 666000 RECOVERY, 222000 RE-OBSERVE, 111000 COMPARE / LEARN, 999000 AUDIT, Δ BALANCE and `run_loop`, merged.
 - PR #23: Super Tool V1 offline ASK / CHECK / BUILD starter merged.
-- Step 7 (`shai-digital-twin` branch): SHAI digital twin + ELO-ECTRIC power model. Software only, illustrative numbers, **not hardware-ready**. Proposed, not merged at this review.
+- Step 7: SHAI digital twin + ELO-ECTRIC power model are present on `main`. Software only, illustrative numbers, **not hardware-ready**.
 
-## Current test count
-`python3 -m unittest discover -v`: **243 tests, all passing** (local run on `shai-digital-twin`, 25 October 2026).
-`python3 -m maniac.simulation`: 33/33 scenarios pass.
+## Offline completion work in this change
+- [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
+- [x] Optional V25 TRI5 assessment in `run_loop`, before any recorded human decision; a prior HOLD is preserved.
+- [x] Regression coverage for invalid power inputs and simulated motion exceeding the consent window.
+- [x] Keep human `REJECTED` decisions conservative: `UNBALANCED` and `144 HOLD`.
+
+These changes are proposed for maintainer review; this record does not claim they have merged or that a new CI run has passed.
+
+## Reproduce verification
+```sh
+python3 -m unittest discover -v
+python3 -m maniac.simulation
+```
+Local verification on 25 October 2026 passed **279 tests** and **33/33 simulation scenarios**. The baseline (`84bf0b7`, PR #24 merged) passed 243 tests before these changes. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
 
 ## Next step
-With step 6, every gate in Mitch's flow exists as offline code. Step 7 adds a simulated SHAI body and power model that can only move through the full loop plus a human approval. Suggested next work, for Mitch to decide: an independent outside review (see issue #21), persistent audit storage, wiring V25 TRI5 into `run_loop`, and deciding whether a clean human REJECTED counts as BALANCED.
+Review the completed offline changes, then obtain independent outside review (see issue #21). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
 
 ## Outstanding release gates (144 HOLD)
-- [~] Assess concurrency, duplicate requests, replay and SQLite persistence across restarts. Local single-database cases are tested in PR #19. Cross-device replay is not established.
-- [x] Verify MANIAC + V3.1 evidence-bridge integration with adversarial synthetic scenarios (`python3 -m maniac.simulation`, 33 scenarios, including full-loop recovery and SHAI twin). USHAI is covered only by its fixed baseline input.
+- [ ] Complete the broader concurrency and replay assessment. Local single-database duplicate/reopen cases are tested in PR #19; the optional audit store adds local transaction and stale-writer checks. Cross-device replay and distributed audit integrity are not established.
+- [x] MANIAC + V3.1 evidence-bridge synthetic integration scenarios exist (`python3 -m maniac.simulation`, including full-loop recovery and SHAI twin). Re-run on the reviewed revision; USHAI is covered only by its fixed baseline input.
 - [ ] Review trust-key provisioning, source independence and approval/consent provenance.
 - [ ] Review public repo and git history for secrets, private data and licensing.
 - [ ] Obtain independent security and hazard review before consequential applications.
