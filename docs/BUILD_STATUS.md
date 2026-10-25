@@ -32,6 +32,7 @@ Progress is recorded as implemented milestones and outstanding review gates belo
   - A recorded human decision is tamper-evident: an `object.__setattr__` overwrite or field edit is detected, giving 144 HOLD, and re-recording is refused.
   - The SQLite audit keeps a count/head anchor, so deleting tail rows is detected on load without `expected_head`. Older databases are anchored on first open.
   - AAA Doctor `Review` rejects `human_approval_required` not True, `diagnosis_made` not False and `autonomous_dispatch` not False (ValueError).
+- Fair comparison (offline, author-written, not independently reviewed): `python3 -m maniac.benchmark` runs all 33 scenarios through SYNTH_SHAI, an E-stop + watchdog baseline and a human-approval-gate baseline, and writes [FAIR_COMPARISON.md](FAIR_COMPARISON.md). No superiority claim; see its limitations.
 
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
@@ -46,7 +47,7 @@ PR #25 merged at `ef1ffd22c210614dffaa9087b695b21f9efab5b7`. Its post-merge veri
 python3 -m unittest discover -v
 python3 -m maniac.simulation
 ```
-Local verification on 26 October 2026 (with the low-findings fixes applied) passed **415 tests** and **33/33 simulation scenarios**. The security-hardening candidate on 25 October 2026 passed 288 tests. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
+Local verification on 26 October 2026 (with the fair-comparison benchmark applied) passed **431 tests** and **33/33 simulation scenarios**. The security-hardening candidate on 25 October 2026 passed 288 tests. The PR #25 baseline passed 279 tests; PR #24 had 243. The local run uses cryptography 50.0.0; exact-lock installation must be validated by CI because workspace package networking is unavailable. Re-run on the revision under review; local results and GitHub Actions results are separate evidence.
 
 ## Next step
 Review the release/security hardening and exact-head CI, enable/confirm private reporting and branch protection, then obtain independent outside review (see issue #21 and [the release checklist](RELEASE_SECURITY_CHECKLIST.md)). Persistent audit storage and V25 TRI5 loop integration are now implemented as opt-in prototype features. Neither establishes trusted sensor/consent provenance, independent safeguarding capability or production readiness. See [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md) for usage and audit limitations.
