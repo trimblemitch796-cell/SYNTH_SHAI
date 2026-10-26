@@ -152,9 +152,15 @@ class Ported(unittest.TestCase):
             self.assertEqual(g[:3], ['555000 TRIANGULATE', '144 HOLD', '999000 AUDIT'])
             self.assertIn('444000 VERIFY / HUMAN APPROVAL', g)
 
-    @unittest.expectedFailure   # known spec mismatch in V0.1; see report
     def test_p_hold_outcome_label_for_insufficient_answers(self):   # SPEC: outcome HOLD, not NO_CHECK
         self.assertEqual(ev('412', None)['outcome'], 'HOLD')
+        self.assertIsNone(ev('412', None)['check_outcome'])
+        r = ev('400', '421')                               # check ran: label kept
+        self.assertEqual((r['outcome'], r['check_outcome'], r['state']), ('NO_MATCH', 'NO_MATCH', '144 HOLD'))
+        r = ev('412', '421', plan=Plan('SYNTHETIC-1', ('200', '212'), 'none'))
+        self.assertEqual((r['outcome'], r['reason']), ('NO_CHECK', 'no_registered_check'))
+        with patch('maniac.synth_shai_referee.check', side_effect=RuntimeError('x')):
+            self.assertEqual(ev('412', '421')['outcome'], 'HOLD')
 
 
 if __name__ == '__main__':

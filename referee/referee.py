@@ -137,7 +137,10 @@ MATCH_GATES = ('555000 TRIANGULATE', '999000 AUDIT', '444000 VERIFY REQUIRED')
 
 def evaluate(plan, answers, commitment):
     """Pure decision. Unsupported/invalid data fail closed; no input text echoed."""
-    base = dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
+    # outcome per spec section 5: MATCH / NO_MATCH / NO_CHECK from the check, or HOLD
+    # (with reason) when the item is held before/without a check result.
+    # check_outcome keeps the underlying check result (None = check not run).
+    base = dict(outcome='HOLD', check_outcome=None, state='144 HOLD', approval_granted=False,
                 verdict=None, reason='invalid_input', winners=[], losers=[],
                 disagreement=False, cosmetic_diff=False, check_output=None,
                 note='', gates=list(HOLD_GATES))
@@ -166,19 +169,19 @@ def evaluate(plan, answers, commitment):
                     cosmetic_diff=len(values) == 1 and len({a.raw for a in present}) > 1,
                     note='Models disagreed; unresolved.' if disagreement else '')
         if plan.check == 'none':
-            return dict(base, reason='no_registered_check')
+            return dict(base, outcome='NO_CHECK', check_outcome='NO_CHECK', reason='no_registered_check')
         first, second = check(plan), check(plan)
         if first != second:
-            return dict(base, reason='check_unstable')
+            return dict(base, outcome='NO_CHECK', check_outcome='NO_CHECK', reason='check_unstable')
         expected = Fraction(first)
         winners = [a.attempt for a in present if number(a.raw) == expected]
         losers = [{'attempt': a.attempt, 'reason': 'exact_sum_mismatch'}
                   for a in present if number(a.raw) != expected]
         if not winners:
-            return dict(base, outcome='NO_MATCH', reason='no_claim_matches',
+            return dict(base, outcome='NO_MATCH', check_outcome='NO_MATCH', reason='no_claim_matches',
                         check_output=first, losers=losers)
         # This check binds every passing answer to ONE exact value.
-        return dict(base, outcome='MATCH', state='444000 VERIFY REQUIRED',
+        return dict(base, outcome='MATCH', check_outcome='MATCH', state='444000 VERIFY REQUIRED',
                     verdict=first, reason='exact_sum_match', winners=winners,
                     losers=losers, check_output=first,
                     note='Models disagreed; exact recomputation resolved the total.' if disagreement else '',
@@ -253,7 +256,8 @@ class Journal:
                     db.execute('INSERT INTO disagreements VALUES (?,?)', (anchor, text))
             return dict(result, audit_anchor=anchor)
         except (sqlite3.Error, ValueError, TypeError, KeyError):
-            return dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
+            return dict(outcome='HOLD', check_outcome=result.get('check_outcome'),
+                        state='144 HOLD', approval_granted=False,
                         verdict=None, reason='audit_failed', disagreement=result['disagreement'],
                         gates=list(HOLD_GATES))
 
