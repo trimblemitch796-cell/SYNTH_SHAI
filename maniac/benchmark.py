@@ -260,6 +260,8 @@ def render(rows):
         "- **Baseline modelling choices** (documented above) are the author's reading of common "
         "practice. Different reasonable choices would change the numbers, especially Baseline B's "
         "assumption that the operator approves what they are shown.",
+        "- **Threat model:** these scenarios test bad *data*, not hostile code or users on the same "
+        "machine; see [THREAT_MODEL.md](THREAT_MODEL.md).",
         "- **Needs independent review:** per docs/MISSION.md, no superiority claim should be made "
         "until an independent party designs or checks scenarios, baselines and scoring.",
         "",

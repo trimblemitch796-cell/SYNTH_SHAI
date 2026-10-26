@@ -97,7 +97,7 @@ class MotionResult:
 class ShaiTwin:
     """Simulated 170 cm humanoid. Internal state is private (leading _)."""
 
-    def __init__(self, seed=0, soc=1.0, temp_c=25.0, consent_seconds=600.0, replay_db=None):
+    def __init__(self, seed=0, soc=1.0, temp_c=25.0, consent_seconds=600.0, replay_db=None, trust=None):
         if not _finite_number(consent_seconds) or consent_seconds < 0:
             raise ValueError("consent_seconds must be a finite nonnegative number")
         self._clock = FakeClock()
@@ -105,7 +105,7 @@ class ShaiTwin:
         self._angles = {name: 0.0 for name in JOINTS}  # every joint starts at 0
         self._power = PowerModel(soc=soc, temp_c=temp_c)
         self._monitor = Monitor(self._clock, COMPONENTS)
-        self._supervisor = Supervisor(clock=self._clock, replay_db=replay_db)  # trusted config
+        self._supervisor = Supervisor(clock=self._clock, replay_db=replay_db, trust=trust)  # trusted config
         self._history = {s: deque(maxlen=5) for s in ("camera", "lidar")}
         self._dead = set()              # sensors that dropped out
         self._dropout_plan = None       # (sensor, step) - simulation fault hook
@@ -138,14 +138,22 @@ class ShaiTwin:
         """Simulation only: make `sensor` stop reporting part-way through the next motion."""
         self._dropout_plan = (sensor, int(after_steps))
 
+    def issue_challenge(self, report_sha256):
+        """Verifier-issued, single-use challenge that evidence must be signed over."""
+        issue = getattr(self._supervisor.provenance_checker, "issue_challenge", None)
+        if issue is None:
+            raise ValueError("no trusted replay store / pinned keys configured")
+        return issue(report_sha256)
+
     # ---- the ONLY way to move ------------------------------------------
     def request_motion(self, plan, approval=None, provenance=None, ethical_evidence=None):
         """plan: {"request_id": str, "moves": {joint: target_deg}, "duration_s": number}
         approval: {"request_id", "plan_sha256", "operator_id", "decision", "reason"}
             from a human; build with approval_for(plan, ...). Single-use.
-        provenance: {"envelope"} - freshly signed V3.1 evidence. The replay
-            database is fixed by ShaiTwin(replay_db=...); a request-supplied
-            "db_path" is refused (144 HOLD)."""
+        provenance: {"envelope": {"record": ...}} - V3.1 evidence signed over a
+            challenge from issue_challenge(). The replay database and pinned
+            keys are fixed by ShaiTwin(replay_db=..., trust=...); a request-
+            supplied "db_path", keys, hash or challenge is refused (144 HOLD)."""
         rid = plan.get("request_id") if isinstance(plan, dict) else None
         try:
             plan = copy.deepcopy(plan)   # caller can't change the plan after approval checks

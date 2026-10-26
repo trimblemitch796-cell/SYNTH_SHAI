@@ -38,7 +38,7 @@ def held_context(request, bundle):
 
 def _challenge(bundle):
     try:
-        return bundle["provenance"]["envelope"]["expected_challenge"]
+        return bundle["provenance"]["envelope"]["record"]["challenge"]
     except (KeyError, TypeError):
         return None
 

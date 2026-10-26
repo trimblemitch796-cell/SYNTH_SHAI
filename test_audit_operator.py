@@ -55,7 +55,8 @@ class TestAuditRecordsOperator(tml.Base):
     def test_twin_motion_audit_has_operator_and_plan(self):
         import test_shai_twin as tst
         from shai.twin import approval_for, plan_digest, MOVED
-        t = tst.ShaiTwin(replay_db=os.path.join(self.tmp.name, "replay.sqlite"))
+        from maniac.simulation import sim_trust, issued_envelope
+        t = tst.ShaiTwin(replay_db=os.path.join(self.tmp.name, "replay.sqlite"), trust=sim_trust())
         plan = {"request_id": "r1", "moves": {"elbow_left": 30}, "duration_s": 2.0}
         from maniac.simulation import signed_envelope
         captured = {}
@@ -67,7 +68,7 @@ class TestAuditRecordsOperator(tml.Base):
         loop_mod.human_review_detail = spy
         try:
             r = t.request_motion(plan, approval_for(plan, "mitch", "APPROVED", "ok"),
-                                 {"envelope": signed_envelope("audit-op-twin-%s" % id(self))}, tst.GOOD)
+                                 {"envelope": issued_envelope(t)}, tst.GOOD)
         finally:
             loop_mod.human_review_detail = real
         self.assertEqual(r.outcome, MOVED)

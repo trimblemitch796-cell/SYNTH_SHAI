@@ -118,25 +118,28 @@ class TestRealBridgeProvenance(bridge_tests.BridgeTests):
         locals()[_name] = None
     del _name
 
+    def issued(self, checker):
+        """Verifier issues the challenge; the (trusted) sources sign over it."""
+        return {"envelope": self.envelope_for(checker.issue_challenge(self.digest))}
+
     def test_real_bridge_pass_then_replay_holds(self):
         b = good_bundle()
-        b["provenance"] = {"envelope": self.envelope}
-        checker = make_bridge_checker(self.db)   # trusted configuration
+        checker = make_bridge_checker(self.db, self.trust)   # trusted configuration
+        b["provenance"] = self.issued(checker)
         self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, PASS)
         replay = check_evidence(copy.deepcopy(b), clock, provenance_checker=checker)
         self.assertEqual(replay.overall, HOLD)   # same evidence twice = replay
 
     def test_request_cannot_choose_replay_db(self):
         b = good_bundle()
-        checker = make_bridge_checker(self.db)
-        b["provenance"] = {"envelope": self.envelope}
+        checker = make_bridge_checker(self.db, self.trust)
+        b["provenance"] = self.issued(checker)
         self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, PASS)
         fresh = str(self.db) + ".fresh"
-        b["provenance"] = {"envelope": self.envelope, "db_path": fresh}
+        b["provenance"] = dict(self.issued(checker), db_path=fresh)
         self.assertEqual(check_evidence(b, clock, provenance_checker=checker).overall, HOLD)
-        b["provenance"] = {"envelope": self.envelope}
+        b["provenance"] = self.issued(checker)
         self.assertEqual(check_evidence(b, clock).overall, HOLD)   # default: no trusted store
-
 
 if __name__ == "__main__":
     unittest.main()

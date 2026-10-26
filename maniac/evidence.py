@@ -60,26 +60,55 @@ class EvidenceResult:
 PROVENANCE_FIELDS = {"envelope"}   # the replay store is NEVER chosen by the request
 
 
-def make_bridge_checker(replay_db):
-    """Provenance checker bound to ONE trusted replay database.
+class BridgeChecker:
+    """Provenance checker bound to trusted configuration.
 
-    replay_db comes from trusted configuration (e.g. when the Supervisor or
-    ShaiTwin is constructed), never from request data. Provenance must be
-    exactly {"envelope": ...}; a request that names its own "db_path" (or any
-    other field) is refused, so it fails closed to 144 HOLD.
+    replay_db: the ONE replay database (never chosen by the request).
+    trust:     shai_v31_bridge.TrustConfig of pinned signing keys (never taken
+               from the envelope). None -> every provenance check HOLDs.
+    Challenges are ISSUED by this verifier (issue_challenge) and each one is
+    single-use: an envelope whose record challenge was not issued here, or was
+    already presented, fails closed to 144 HOLD.
     """
-    import os
-    if not isinstance(replay_db, (str, os.PathLike)) or not os.fspath(replay_db):
-        raise ValueError("replay_db must be a non-empty path from trusted configuration")
-    trusted_db = os.fspath(replay_db)
 
-    def checker(provenance):
+    def __init__(self, replay_db, trust=None):
+        import os
+        if not isinstance(replay_db, (str, os.PathLike)) or not os.fspath(replay_db):
+            raise ValueError("replay_db must be a non-empty path from trusted configuration")
+        self.replay_db = os.fspath(replay_db)
+        self._trust = trust
+        self._issued = {}          # challenge -> expected report sha256
+
+    def issue_challenge(self, report_sha256):
+        """Issue a fresh, unguessable challenge for evidence about report_sha256."""
+        import secrets
+        if type(report_sha256) is not str or len(report_sha256) != 64:
+            raise ValueError("report_sha256 must be a 64-character hex digest")
+        challenge = "maniac-" + secrets.token_hex(16)
+        self._issued[challenge] = report_sha256
+        return challenge
+
+    def __call__(self, provenance):
         if not isinstance(provenance, dict) or set(provenance) != PROVENANCE_FIELDS:
             return "HOLD: provenance must be exactly {'envelope'}; replay store is not request-selectable"
+        if self._trust is None:
+            return "HOLD: no pinned trusted keys configured"
+        envelope = provenance["envelope"]
+        try:
+            challenge = envelope["record"]["challenge"]
+            expected_sha256 = self._issued.pop(challenge)      # single-use
+        except (KeyError, TypeError):
+            return "HOLD: challenge was not issued by this verifier (or already used)"
         from shai_v31_bridge import evaluate
-        return evaluate(provenance["envelope"], db_path=trusted_db)
-    checker.replay_db = trusted_db
-    return checker
+        return evaluate(envelope, db_path=self.replay_db, trust=self._trust,
+                        expected_challenge=challenge, expected_sha256=expected_sha256)
+
+
+def make_bridge_checker(replay_db, trust=None):
+    """Provenance checker bound to ONE trusted replay database and pinned keys.
+    Provenance must be exactly {"envelope": {"record": ...}}; a request that
+    names its own "db_path", keys, hash or challenge is refused (144 HOLD)."""
+    return BridgeChecker(replay_db, trust)
 
 
 def no_trusted_replay_store(provenance):
