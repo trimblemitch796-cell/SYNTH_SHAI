@@ -64,8 +64,8 @@ class TestReplayStorageBoundaries(unittest.TestCase):
     def test_transient_or_uri_replay_stores_hold(self):
         for path in (':memory:', Path(':memory:'), 'file::memory:?cache=shared', 'file:replay.sqlite'):
             with self.subTest(path=path):
-                self.assertEqual(evaluate(self.envelope, db_path=path), HOLD)
-                self.assertEqual(evaluate(self.envelope, db_path=path), HOLD)
+                self.assertEqual(evaluate(self.envelope, db_path=path, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
+                self.assertEqual(evaluate(self.envelope, db_path=path, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
 
     def test_invalid_replay_schema_holds(self):
         schemas = (
@@ -83,8 +83,8 @@ class TestReplayStorageBoundaries(unittest.TestCase):
                     conn.commit()
                 finally:
                     conn.close()
-                self.assertEqual(evaluate(self.envelope, db_path=path), HOLD)
-                self.assertEqual(evaluate(self.envelope, db_path=path), HOLD)
+                self.assertEqual(evaluate(self.envelope, db_path=path, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
+                self.assertEqual(evaluate(self.envelope, db_path=path, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
 
     def test_unconfirmed_insert_holds(self):
         triggers = (
@@ -103,11 +103,11 @@ class TestReplayStorageBoundaries(unittest.TestCase):
                     conn.commit()
                 finally:
                     conn.close()
-                self.assertEqual(evaluate(self.envelope, db_path=path), HOLD)
+                self.assertEqual(evaluate(self.envelope, db_path=path, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
 
     def test_valid_file_still_enforces_persistent_replay(self):
-        self.assertEqual(evaluate(self.envelope, db_path=self.db), 'REVIEW_REQUIRED')
-        self.assertEqual(evaluate(self.envelope, db_path=self.db), HOLD)
+        self.assertEqual(evaluate(self.envelope, db_path=self.db, **bridge_tests.BridgeTests.bridge_kwargs(self)), 'REVIEW_REQUIRED')
+        self.assertEqual(evaluate(self.envelope, db_path=self.db, **bridge_tests.BridgeTests.bridge_kwargs(self)), HOLD)
 
 
 class TestBridgeInputBoundaries(unittest.TestCase):
@@ -115,9 +115,15 @@ class TestBridgeInputBoundaries(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'synthetic.json'
             path.write_text('[' * 20000 + '0' + ']' * 20000)
+            trust = Path(folder) / 'trust.json'
+            trust.write_text(json.dumps({'trusted_keys': {
+                'key-0': {'source_id': 'source-0', 'public_key_hex': '0' * 64},
+                'key-1': {'source_id': 'source-1', 'public_key_hex': '1' * 64}}}))
             child = subprocess.run(
                 [sys.executable, 'shai_v31_bridge.py', '--input', str(path),
-                 '--replay-db', str(Path(folder) / 'replay.sqlite')],
+                 '--replay-db', str(Path(folder) / 'replay.sqlite'),
+                 '--trust-config', str(trust), '--challenge', 'verifier-issued-challenge-0001',
+                 '--expected-sha256', 'a' * 64],
                 capture_output=True, text=True, timeout=15,
                 cwd=Path(__file__).resolve().parent,
             )

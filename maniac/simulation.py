@@ -38,22 +38,44 @@ class FakeClock:
         return self.t
 
 
-def signed_envelope(challenge, report="Offline only: no actuation"):
-    """Two V3.1 evidence signatures made from fixed (seeded) keys."""
-    revision, digest = "sim-rev", sha256_text(report)
-    trusted, evidence = {}, []
+def _sim_keys():
+    """Fixed (seeded) simulation signing keys - synthetic, never real secrets."""
+    out = []
     for i in range(2):
         seed = hashlib.sha256(b"maniac-sim-key-%d" % i).digest()
-        private = Ed25519PrivateKey.from_private_bytes(seed)
+        out.append(Ed25519PrivateKey.from_private_bytes(seed))
+    return out
+
+
+def sim_trust():
+    """Pinned trust configuration for the two simulation signing keys."""
+    from shai_v31_bridge import TrustConfig
+    trusted = {}
+    for i, private in enumerate(_sim_keys()):
         public = private.public_key().public_bytes(
             encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+        trusted["key-%d" % i] = {"source_id": "source-%d" % i, "public_key_hex": public.hex()}
+    return TrustConfig(trusted)
+
+
+def signed_envelope(challenge, report="Offline only: no actuation"):
+    """Two V3.1 evidence signatures over `challenge`, made from the fixed
+    simulation keys. Returns {"record": ...} only: trust material (keys,
+    expected hash, challenge) is held by the verifier, never the envelope."""
+    revision, digest = "sim-rev", sha256_text(report)
+    evidence = []
+    for i, private in enumerate(_sim_keys()):
         item = {"source_id": "source-%d" % i, "key_id": "key-%d" % i,
                 "source_revision": revision, "report_sha256": digest, "challenge": challenge}
-        trusted[item["key_id"]] = {"source_id": item["source_id"], "public_key_hex": public.hex()}
         evidence.append({**item, "signature": private.sign(canonical_bytes(item)).hex()})
     return {"record": {"test_report": report, "source_revision": revision,
-                       "challenge": challenge, "verification_evidence": evidence},
-            "trusted_keys": trusted, "expected_sha256": digest, "expected_challenge": challenge}
+                       "challenge": challenge, "verification_evidence": evidence}}
+
+
+def issued_envelope(verifier, report="Offline only: no actuation"):
+    """Ask the verifier (BridgeChecker, Supervisor checker or ShaiTwin) for a
+    fresh challenge, then sign evidence over it."""
+    return signed_envelope(verifier.issue_challenge(sha256_text(report)), report)
 
 
 class Scenario:
@@ -65,6 +87,7 @@ class Scenario:
         for c in ("camera", "lidar"):
             self.monitor.heartbeat(c)
         self.monitor.kick()
+        self.supervisor = Supervisor(clock=self.clock, replay_db=db_path, trust=sim_trust())
         self.bundle = {
             "sensors": [
                 {"source": "camera", "type": "camera", "quantity": "distance", "value": 10.0, "min": 0, "max": 100,
@@ -74,7 +97,7 @@ class Scenario:
             ],
             "action": "move_arm",
             "consent": {"allowed_actions": ["move_arm"], "expires_at": NOW + 60},
-            "provenance": {"envelope": signed_envelope("maniac-simulation-challenge-" + name)},
+            "provenance": {"envelope": issued_envelope(self.supervisor.provenance_checker)},
         }
         self.request = {
             "request_id": "sim-" + name,
@@ -88,7 +111,6 @@ class Scenario:
             "evidence_verdict": "REVIEW_REQUIRED",
             "ethical_evidence": EthicalEvidence(True, True, True, False, False, True),
         }
-        self.supervisor = Supervisor(clock=self.clock, replay_db=db_path)
         self.db_path = db_path
         self.loop = None          # set by a loop scenario to run the whole loop
         self.twin_case = None     # set by a SHAI twin scenario
@@ -189,7 +211,7 @@ def _held_then_recover(s, fresh_challenge, fresh_time):
     for sensor in new["sensors"]:
         sensor["timestamp"] = fresh_time(s)
     if fresh_challenge:
-        new["provenance"]["envelope"] = signed_envelope("maniac-simulation-recovery-" + s.name)
+        new["provenance"]["envelope"] = issued_envelope(s.supervisor.provenance_checker)
     req = dict(s.request, request_id=s.request["request_id"] + "-recovered",
                heartbeats=[s.clock.t - 0.2])
     s.loop = {"recovery": {"repair_note": {"operator_id": "mitch", "reason": "replaced camera"},
@@ -209,7 +231,7 @@ def twin(kind):
             from shai.twin import ShaiTwin, approval_for            # imported here: shai imports maniac
             kw = {"soc": 0.10} if kind == "low_battery" else {}
             kw.update({"temp_c": 65.0} if kind == "overheat" else {})
-            t = ShaiTwin(seed=7, replay_db=s.db_path, **kw)
+            t = ShaiTwin(seed=7, replay_db=s.db_path, trust=sim_trust(), **kw)
             before = t.joint_angles
             rid = "twin-" + kind
             target = 200 if kind == "over_limit" else 30
@@ -221,7 +243,7 @@ def twin(kind):
                 approval = dict(approval, request_id="twin-some-other-request")
             if kind == "dropout":
                 t.inject_sensor_dropout("lidar", after_steps=5)
-            prov = {"envelope": signed_envelope("maniac-twin-challenge-" + kind)}
+            prov = {"envelope": issued_envelope(t)}
             r = t.request_motion(plan, approval, prov, GOOD_ETHICS)
             assert r.approval_granted is False
             moved = t.joint_angles != before

@@ -12,7 +12,7 @@ from maniac.learn import LessonLog
 from maniac.loop import run_loop
 from maniac.observe import reobserve
 from maniac.recovery import recover, held_context
-from maniac.simulation import Scenario, signed_envelope, NOW
+from maniac.simulation import Scenario, signed_envelope, issued_envelope, NOW
 from maniac.triangulate import readings_from_bundle
 from maniac.evidence import TOLERANCE, MAX_AGE
 
@@ -44,7 +44,7 @@ class Base(unittest.TestCase):
         for sensor in new["sensors"]:
             sensor["timestamp"] = s.clock.t - 0.2 if fresh else NOW - 0.5
         if new_challenge:
-            new["provenance"]["envelope"] = signed_envelope("fresh-challenge-for-" + s.name)
+            new["provenance"]["envelope"] = issued_envelope(s.supervisor.provenance_checker)
         req = dict(s.request, request_id="recovered-" + s.name, heartbeats=[s.clock.t - 0.2])
         return held_bundle, req, new
 

@@ -46,6 +46,13 @@ class TestBenchmarkRun(BenchBase):
                      "independent", "not** evidence that SYNTH_SHAI is better"):
             self.assertIn(must, text)
 
+    def test_committed_report_matches_generator(self):
+        """`python3 -m maniac.benchmark` must reproduce docs/FAIR_COMPARISON.md exactly."""
+        path = os.path.join(os.path.dirname(os.path.abspath(bm.__file__)), "..", "docs", "FAIR_COMPARISON.md")
+        with open(path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), bm.render(self.rows))
+        self.assertIn("[THREAT_MODEL.md](THREAT_MODEL.md)", bm.render(self.rows))
+
     def test_main_no_write_does_not_touch_docs(self):
         path = os.path.join(os.path.dirname(os.path.abspath(bm.__file__)), "..", "docs", "FAIR_COMPARISON.md")
         before = os.path.getmtime(path) if os.path.exists(path) else None

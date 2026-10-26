@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from maniac.simulation import signed_envelope
+from maniac.simulation import signed_envelope, issued_envelope, sim_trust
 from maniac.triangulate import readings_from_bundle, triangulate
 from maniac.evidence import check_evidence
 from shai.twin import ShaiTwin, approval_for, plan_digest, JOINTS, HEIGHT_CM, MOVED, HOLD, SAFE_LOCK
@@ -20,18 +20,25 @@ class Base(unittest.TestCase):
 
     def twin(self, **kw):
         """Twin whose replay store is trusted configuration, not request data."""
-        return ShaiTwin(replay_db=self.db, **kw)
+        """Replay store and pinned keys are trusted configuration, not request data."""
+        self._last_twin = ShaiTwin(replay_db=self.db, trust=sim_trust(), **kw)
+        return self._last_twin
 
-    def prov(self):
+    def prov(self, twin=None):
+        """Evidence signed over a challenge issued by the twin's verifier."""
         self.n += 1
-        return {"envelope": signed_envelope("twin-test-challenge-%04d-%s" % (self.n, id(self)))}
+        twin = twin or getattr(self, "_last_twin", None)
+        try:
+            return {"envelope": issued_envelope(twin)}
+        except (AttributeError, ValueError):   # no verifier configured -> unissued challenge
+            return {"envelope": signed_envelope("twin-test-unissued-%04d" % self.n)}
 
     def ask(self, twin, rid="r1", moves=None, secs=2.0, approve=True, approval=None,
             ethics=GOOD, prov="fresh"):
         plan = {"request_id": rid, "moves": moves or {"elbow_left": 30}, "duration_s": secs}
         if approval is None and approve:
             approval = approval_for(plan, "mitch", "APPROVED", "test")
-        return twin.request_motion(plan, approval, self.prov() if prov == "fresh" else prov, ethics)
+        return twin.request_motion(plan, approval, self.prov(twin) if prov == "fresh" else prov, ethics)
 
 
 class TestTwinBasics(Base):
@@ -218,8 +225,9 @@ class TestNoBackdoor(Base):
     def test_public_methods_never_move(self):
         t = self.twin()
         public = [m for m in dir(t) if not m.startswith("_") and callable(getattr(t, m))]
-        self.assertEqual(sorted(public), ["inject_sensor_dropout", "request_motion", "safe_stop", "sense"])
-        t.sense(); t.safe_stop("test"); t.inject_sensor_dropout("camera")
+        self.assertEqual(sorted(public), ["inject_sensor_dropout", "issue_challenge", "request_motion",
+                                          "safe_stop", "sense"])
+        t.sense(); t.safe_stop("test"); t.inject_sensor_dropout("camera"); t.issue_challenge("a" * 64)
         self.assertTrue(all(v == 0.0 for v in t.joint_angles.values()))
 
     def test_result_frozen(self):
@@ -236,8 +244,8 @@ class TestReplayStoreIsTrustedConfig(Base):
     """Review finding (HIGH): the request must not choose the replay database."""
 
     def test_same_evidence_with_fresh_db_path_cannot_move_twin_again(self):
-        env = signed_envelope("twin-replay-probe-%s" % id(self))
         t = self.twin()
+        env = issued_envelope(t)
         self.assertEqual(self.ask(t, rid="x1", prov={"envelope": env}).outcome, MOVED)
         before = t.joint_angles
         fresh = os.path.join(self.tmp.name, "attacker-fresh.sqlite")
@@ -247,8 +255,9 @@ class TestReplayStoreIsTrustedConfig(Base):
         self.assertFalse(os.path.exists(fresh))     # never opened the attacker's DB
 
     def test_fresh_twin_same_store_rejects_replay(self):
-        env = signed_envelope("twin-replay-probe2-%s" % id(self))
-        self.assertEqual(self.ask(self.twin(), rid="y1", prov={"envelope": env}).outcome, MOVED)
+        t1 = self.twin()
+        env = issued_envelope(t1)
+        self.assertEqual(self.ask(t1, rid="y1", prov={"envelope": env}).outcome, MOVED)
         t2 = self.twin()
         r = self.ask(t2, rid="y2", prov={"envelope": env})
         self.assertEqual(r.outcome, HOLD)
