@@ -146,10 +146,11 @@ class Ported(unittest.TestCase):
     def test_n_self_test_runs_on_claims_not_item_text(self):
         pass
 
-    @unittest.expectedFailure   # known spec mismatch in V0.1; see report
     def test_o_hold_gate_path_includes_spec_gates(self):   # SPEC: 555000 ... 999000 on the HOLD path
-        g = ev('400', '421')['gates']
-        self.assertIn('555000 TRIANGULATE', g)
+        for vals in [('400', '421'), ('412',), ('412', None)]:
+            g = ev(*vals)['gates']
+            self.assertEqual(g[:3], ['555000 TRIANGULATE', '144 HOLD', '999000 AUDIT'])
+            self.assertIn('444000 VERIFY / HUMAN APPROVAL', g)
 
     @unittest.expectedFailure   # known spec mismatch in V0.1; see report
     def test_p_hold_outcome_label_for_insufficient_answers(self):   # SPEC: outcome HOLD, not NO_CHECK

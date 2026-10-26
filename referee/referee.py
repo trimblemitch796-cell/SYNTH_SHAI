@@ -129,12 +129,18 @@ def check(plan):
     return str(sum((number(x) for x in plan.operands), Fraction(0)))
 
 
+# Route labels per docs/DISAGREEMENT_REFEREE_SPEC.md section 6. Labels only:
+# evaluate() does not itself audit; Journal.record() is the 999000 step.
+HOLD_GATES = ('555000 TRIANGULATE', '144 HOLD', '999000 AUDIT', '444000 VERIFY / HUMAN APPROVAL')
+MATCH_GATES = ('555000 TRIANGULATE', '999000 AUDIT', '444000 VERIFY REQUIRED')
+
+
 def evaluate(plan, answers, commitment):
     """Pure decision. Unsupported/invalid data fail closed; no input text echoed."""
     base = dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
                 verdict=None, reason='invalid_input', winners=[], losers=[],
                 disagreement=False, cosmetic_diff=False, check_output=None,
-                note='', gates=['144 HOLD', '444000 VERIFY / HUMAN APPROVAL'])
+                note='', gates=list(HOLD_GATES))
     try:
         if type(plan) is not Plan or type(answers) is not tuple or not len(answers) <= 16:
             return base
@@ -176,7 +182,7 @@ def evaluate(plan, answers, commitment):
                     verdict=first, reason='exact_sum_match', winners=winners,
                     losers=losers, check_output=first,
                     note='Models disagreed; exact recomputation resolved the total.' if disagreement else '',
-                    gates=['555000 TRIANGULATE', '444000 VERIFY REQUIRED'])
+                    gates=list(MATCH_GATES))
     except Exception:
         return dict(base, reason='internal_error')
 
@@ -248,7 +254,8 @@ class Journal:
             return dict(result, audit_anchor=anchor)
         except (sqlite3.Error, ValueError, TypeError, KeyError):
             return dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
-                        verdict=None, reason='audit_failed', disagreement=result['disagreement'])
+                        verdict=None, reason='audit_failed', disagreement=result['disagreement'],
+                        gates=list(HOLD_GATES))
 
     def read(self, item_id):
         synthetic(item_id)
