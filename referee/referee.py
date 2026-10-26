@@ -1,6 +1,7 @@
 """SYNTH_SHAI bounded offline numeric referee, version 0.1.0.
 No model APIs, execution of submitted code, or approval authority.
 """
+from contextlib import contextmanager
 from dataclasses import dataclass, asdict
 from fractions import Fraction
 import hashlib
@@ -242,8 +243,16 @@ class Journal:
               audit_ref TEXT PRIMARY KEY, payload TEXT NOT NULL);
             ''')
 
+    @contextmanager
     def connect(self):
-        return sqlite3.connect(self.path, timeout=10)
+        """Yields a connection: commits on success, rolls back on error, ALWAYS closes.
+        (sqlite3's own context manager commits but never closes.)"""
+        db = sqlite3.connect(self.path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def verify(self, expected_anchor=None):
         try:
