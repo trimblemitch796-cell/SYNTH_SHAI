@@ -14,6 +14,8 @@ Private vulnerability disclosures must use an owner-verified private channel; do
 
 ## What the assessor should inspect
 
+Start with the author's threat model, [THREAT_MODEL.md](THREAT_MODEL.md), which lists known gaps.
+
 - [MISSION.md](MISSION.md): intended purpose and human control model.
 - [TRUST_BOUNDARIES.md](TRUST_BOUNDARIES.md): caller-supplied public keys, sensor inputs, operator text, consent and audit assumptions.
 - [RELEASE_SECURITY_CHECKLIST.md](RELEASE_SECURITY_CHECKLIST.md): known review blockers, bounded CI/history scans and owner settings.
