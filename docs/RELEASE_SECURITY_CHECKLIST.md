@@ -1,5 +1,21 @@
 # Release and security checklist
 
+## PR #48 evidence reconciliation — 27 October 2026
+
+Evidence baseline: `406440d32eb4aa4ffb3d2e0622aa831ef9600745`, the merge of [PR #48](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/48) on 26 October 2026. These results apply to that immutable revision; later changes need their own checks.
+
+| Evidence | Observed result | Boundary |
+| --- | --- | --- |
+| [Verification run 40301085939](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085939) | 442 tests passed; includes the ten pinned-key regressions, all-scenarios-pass test and benchmark/report equality test | Project-maintained CI, not independent validation |
+| [V3.1 run 40301085852](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085852) | 15 V3.1 tests passed | This subset is included in discovery; do not add it to 442 |
+| Locked dependency installation | CI installed cryptography 50.0.2, cffi 2.1.1 and pycparser 3.12 under Python 3.11.17 | Supersedes pending-CI wording for this baseline; historical local results used a different environment |
+| [Release-security run 40301085774](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085774) | dependency-advisories and reachable-history-secrets jobs succeeded | Known-advisory and fetched-history scope only |
+| 33 simulation scenarios | Passing CI tests exercise all 33 scenarios; benchmark totals remain 29 expected stops and 4 expected allows | Author-written, offline fixtures; not independent evidence of superiority |
+| Independent review | Handoff prepared; PR #48 has no submitted reviews at this check | No independent assessment established; consequential deployment remains **144 HOLD** |
+
+The table above supersedes pending-CI statements for this baseline only. Historical entries below retain their original dates and scope. The branch API currently reports `main` protected with four required checks; this does not independently establish reviewer-approval settings, bypass restrictions or private-reporting availability.
+
+
 ## Status reconciliation — 26 October 2026 (issues #9, #10 and #21)
 
 This section supersedes *only the historical status entries* below where later evidence has changed; retain the original audit details as a dated record.

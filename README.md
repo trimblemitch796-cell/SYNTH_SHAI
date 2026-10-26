@@ -5,7 +5,7 @@
 > **Connection before control. Truth before belief. Repair before rebuild.**  
 > **Preserve hope for what comes after us.**
 
-**Project status (25 October 2026):** Active research and development. The repository contains offline Python prototypes, verification logic, automated tests, and exploratory designs. Passing CI does **not** mean that SYNTH_SHAI is an independently validated general AI, conscious system, deployable robot, licensed financial service, or operational safety controller.
+**Project status (27 October 2026):** Active research and development. The repository contains offline Python prototypes, verification logic, automated tests, and exploratory designs. Passing CI does **not** mean that SYNTH_SHAI is an independently validated general AI, conscious system, deployable robot, licensed financial service, or operational safety controller.
 
 **Public research code only:** SYNTH_SHAI is not a hosted AI service, not a financial adviser, not an autonomous robotics controller, and not a medical device.
 
@@ -133,7 +133,7 @@ These project codes are **human-readable development labels**, not secret keys, 
 - `.github/workflows/verification.yml`: GitHub Actions workflow that installs dependencies and runs Python unittest discovery on pushes, pull requests and manual dispatch.
 - `.github/workflows/verification-v3-1.yml`: the **SYNTH_SHAI V3.1 CATHARSIS tests** workflow.
 
-**Local verification, 26 October 2026 (with pinned evidence keys applied):** `python3 -m unittest discover -q` passes **442 tests**, and `python3 -m maniac.simulation` passes **33/33 scenarios**. An offline, author-written comparison against two conventional baselines is in [docs/FAIR_COMPARISON.md](docs/FAIR_COMPARISON.md) (`python3 -m maniac.benchmark`); it is not independent evidence of superiority. Coverage includes finance, evidence and replay gates, MANIAC/USHAI, recovery and loop closure, SHAI twin/power, V25 TRI5 and Super Tool V1, including durable-audit, loop-level safeguarding, power/consent and release-security regressions. These local results used the workspace's preinstalled cryptography 50.0.0; installation of the new exact dependency lock remains pending CI. Local results do not establish a GitHub Actions result or independent validation; rerun the commands for the revision under review.
+**Local verification, 26 October 2026 (with pinned evidence keys applied):** `python3 -m unittest discover -q` passes **442 tests**, and `python3 -m maniac.simulation` passes **33/33 scenarios**. An offline, author-written comparison against two conventional baselines is in [docs/FAIR_COMPARISON.md](docs/FAIR_COMPARISON.md) (`python3 -m maniac.benchmark`); it is not independent evidence of superiority. Coverage includes finance, evidence and replay gates, MANIAC/USHAI, recovery and loop closure, SHAI twin/power, V25 TRI5 and Super Tool V1, including durable-audit, loop-level safeguarding, power/consent and release-security regressions. These historical local results used the workspace's preinstalled cryptography 50.0.0. Subsequent GitHub Actions on PR #48's merge commit confirmed 442 passing tests and installed the committed lock (cryptography 50.0.2, cffi 2.1.1 and pycparser 3.12); see section 5.4. Both local and CI results remain offline, project-maintained evidence, not independent validation. Rerun the commands for the revision under review.
 
 The financial capability is **not** connected to banks, cannot move money, and cannot give regulated financial advice. All numerical scenarios are illustrative unless separately evidenced.
 
@@ -143,7 +143,7 @@ Merged into `main` on 25 October 2026 (PR #2), `verification_v3.py` implements a
 
 `verification_v3_1.py` adds a strict-scope authenticated evidence gate with durable (local SQLite) replay protection, tested by `test_verification_v3_1.py`. `REVIEW_REQUIRED` is not approval. These files are now on `main`; merging them does **not** replace the independent review described above.
 
-`requirements.txt` includes the exact, hash-checked dependency set in `requirements-lock.txt`: cryptography 50.0.0, cffi 2.1.1 and pycparser 3.12. See [third-party notices](THIRD_PARTY_NOTICES.md) for the dependency upgrade and license evidence.
+`requirements.txt` includes the exact, hash-checked dependency set in `requirements-lock.txt`: cryptography 50.0.2, cffi 2.1.1 and pycparser 3.12. See [third-party notices](THIRD_PARTY_NOTICES.md) for the dependency upgrade and license evidence.
 
 ### 5.3 MANIAC, USHAI and V25 TRI5 (offline simulation on `main`)
 
@@ -159,6 +159,10 @@ These modules are **offline simulations that control no hardware**. They only re
 The separate `maniac-sync-v1` branch holds earlier MANIAC sync research and is **not merged**.
 
 ### 5.4 Verified GitHub Actions evidence
+
+**Checked 27 October 2026:** PR #48 merged as `406440d32eb4aa4ffb3d2e0622aa831ef9600745`. [Verification run 40301085939](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085939) reports 442 tests passed, including all 33 offline scenarios and the benchmark/report equality check. [V3.1 run 40301085852](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085852) passes its 15-test subset; [release-security run 40301085774](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/40301085774) reports both security jobs successful. The locked installation succeeded with cryptography 50.0.2, cffi 2.1.1 and pycparser 3.12 on Python 3.11.17. These are project-maintained checks of the named revision, not an independent review or deployment approval. See the [release evidence reconciliation](docs/RELEASE_SECURITY_CHECKLIST.md#pr-48-evidence-reconciliation--27-october-2026).
+
+**Historical evidence:**
 
 GitHub Actions screenshots supplied on **25 October 2026** show successful runs of the main SYNTH_SHAI verification workflow (including manual run `#35`) and V3.1 CATHARSIS checks (`#6`–`#8`). These green checks establish that the configured workflow jobs reported success for the listed commits. They **do not establish completeness of test coverage, independent validation, absence of security flaws, or real-world deployment readiness**.
 
@@ -342,7 +346,7 @@ SYNTH_SHAI is intended as a careful body of ongoing work: teachable, corrigible,
 ---
 
 **Project stewardship:** Human-led SYNTH_SHAI research.  
-**Last documentation review:** 25 October 2026.  
+**Last documentation review:** 27 October 2026 (PR #48 evidence reconciliation).  
 **Status:** Offline prototypes + active research; real-world high-risk actions remain `144 HOLD`.
 
 ## License

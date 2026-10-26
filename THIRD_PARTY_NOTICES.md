@@ -8,7 +8,7 @@ Reviewed 25 October 2026 for this source-only offline prototype. SYNTH_SHAI's ow
 
 | Component | Pinned version | Declared license | Primary evidence |
 | --- | --- | --- | --- |
-| cryptography | 50.0.0 | Apache-2.0 OR BSD-3-Clause | [Release metadata](https://pypi.org/pypi/cryptography/50.0.0/json), [license selection](https://github.com/pyca/cryptography/blob/50.0.0/LICENSE), [BSD terms](https://github.com/pyca/cryptography/blob/50.0.0/LICENSE.BSD), [Apache terms](https://github.com/pyca/cryptography/blob/50.0.0/LICENSE.APACHE) |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | [Release metadata](https://pypi.org/pypi/cryptography/50.0.2/json), [license selection](https://github.com/pyca/cryptography/blob/50.0.2/LICENSE), [BSD terms](https://github.com/pyca/cryptography/blob/50.0.2/LICENSE.BSD), [Apache terms](https://github.com/pyca/cryptography/blob/50.0.2/LICENSE.APACHE) |
 | cffi | 2.1.1 | MIT-0, except separately stated component terms | [Release metadata](https://pypi.org/pypi/cffi/2.1.1/json), [upstream license](https://github.com/python-cffi/cffi/blob/v2.1.1/LICENSE) |
 | pycparser | 3.12 | BSD-3-Clause | [Versioned release metadata, including license expression and distribution hashes](https://pypi.org/pypi/pycparser/3.12/json), [upstream license](https://github.com/eliben/pycparser/blob/main/LICENSE) |
 
