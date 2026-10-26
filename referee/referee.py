@@ -170,7 +170,12 @@ def evaluate(plan, answers, commitment):
                     note='Models disagreed; unresolved.' if disagreement else '')
         if plan.check == 'none':
             return dict(base, outcome='NO_CHECK', check_outcome='NO_CHECK', reason='no_registered_check')
-        first, second = check(plan), check(plan)
+        try:
+            first, second = check(plan), check(plan)
+        except Exception:
+            # Spec: a check that errors is unstable -> NO_CHECK / check_unstable -> HOLD.
+            # The exception text is never echoed.
+            return dict(base, outcome='NO_CHECK', check_outcome='NO_CHECK', reason='check_unstable')
         if first != second:
             return dict(base, outcome='NO_CHECK', check_outcome='NO_CHECK', reason='check_unstable')
         expected = Fraction(first)

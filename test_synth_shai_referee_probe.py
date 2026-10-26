@@ -160,7 +160,15 @@ class Ported(unittest.TestCase):
         r = ev('412', '421', plan=Plan('SYNTHETIC-1', ('200', '212'), 'none'))
         self.assertEqual((r['outcome'], r['reason']), ('NO_CHECK', 'no_registered_check'))
         with patch('maniac.synth_shai_referee.check', side_effect=RuntimeError('x')):
-            self.assertEqual(ev('412', '421')['outcome'], 'HOLD')
+            self.assertEqual(ev('412', None)['outcome'], 'HOLD')   # held before the check
+
+    def test_r_check_exception_is_no_check_unstable(self):
+        with patch('maniac.synth_shai_referee.check', side_effect=RuntimeError('private text')):
+            r = ev('412', '421')
+        self.assertEqual((r['outcome'], r['check_outcome'], r['reason'], r['state']),
+                         ('NO_CHECK', 'NO_CHECK', 'check_unstable', '144 HOLD'))
+        self.assertIs(r['approval_granted'], False); self.assertIsNone(r['verdict'])
+        self.assertNotIn('private', str(r))
 
     def test_q_replay_rejected_not_persisted(self):
         import tempfile
