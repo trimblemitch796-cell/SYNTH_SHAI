@@ -74,6 +74,57 @@ class Answer:
             number(self.raw)
 
 
+PRIVACY_REASONS = ('REDACTED: invalid_alias', 'REDACTED: invalid_numeric_claim')
+
+
+@dataclass(frozen=True)
+class RejectedAnswer:
+    """An answer that failed the synthetic-data gate. Holds NO raw text:
+    only the SHA-256 and length of the rejected input and a REDACTED marker."""
+    model: str
+    version: str
+    attempt: str
+    raw_sha256: str
+    raw_length: int
+    redacted: str
+
+    def __post_init__(self):
+        for value in (self.model, self.version, self.attempt):
+            if value != 'REDACTED':
+                synthetic(value)
+        if type(self.raw_sha256) is not str or not re.fullmatch(r'[0-9a-f]{64}', self.raw_sha256):
+            raise ValueError('invalid_rejected_answer')
+        if type(self.raw_length) is not int or self.raw_length < 0:
+            raise ValueError('invalid_rejected_answer')
+        if self.redacted not in PRIVACY_REASONS:
+            raise ValueError('invalid_rejected_answer')
+
+
+def _alias_or_redacted(value):
+    try:
+        return synthetic(value)
+    except ValueError:
+        return None
+
+
+def make_answer(model, version, attempt, raw):
+    """Safe factory: returns a validated Answer, or a RejectedAnswer that keeps
+    only sha256 + length + REDACTED marker. Answer() itself still raises."""
+    try:
+        return Answer(model, version, attempt, raw)
+    except ValueError:
+        pass
+    aliases = [_alias_or_redacted(v) for v in (model, version, attempt)]
+    if None in aliases:
+        # The rejected record covers the whole answer, aliases included.
+        blob, why = repr((model, version, attempt, raw)), PRIVACY_REASONS[0]
+        aliases = ['REDACTED'] * 3
+    else:
+        blob, why = raw if isinstance(raw, str) else repr(raw), PRIVACY_REASONS[1]
+    return RejectedAnswer(*aliases, hashlib.sha256(blob.encode('utf-8', 'replace')).hexdigest(),
+                          len(blob), why)
+
+
 def check(plan):
     return str(sum((number(x) for x in plan.operands), Fraction(0)))
 
@@ -89,12 +140,15 @@ def evaluate(plan, answers, commitment):
             return base
         if commitment != plan.commitment:
             return dict(base, reason='commitment_mismatch')
-        if any(type(a) is not Answer for a in answers):
+        if any(type(a) not in (Answer, RejectedAnswer) for a in answers):
             return base
         # Revalidate frozen records as a defensive boundary.
         plan.__post_init__()
         for a in answers:
             a.__post_init__()
+        if any(type(a) is RejectedAnswer for a in answers):
+            # Synthetic-data gate, reject-by-default: hash + length + REDACTED only.
+            return dict(base, reason='privacy_rejected')
         if len({a.attempt for a in answers}) != len(answers):
             return dict(base, reason='duplicate_attempt')
         present = [a for a in answers if a.raw is not None]

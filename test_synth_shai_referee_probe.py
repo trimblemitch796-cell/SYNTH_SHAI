@@ -71,12 +71,36 @@ class Ported(unittest.TestCase):
         with self.assertRaises(ValueError):
             ans('Call John Citizen on 0412 345 678, john.citizen@example.com', '421')
 
-    @unittest.expectedFailure   # known spec mismatch in V0.1; see report
     def test_d2_privacy_rejected_hold_with_hash(self):   # SPEC: HOLD privacy_rejected + sha256/len record
-        try:
-            ans('john.citizen@example.com', '421')
-        except ValueError as e:
-            self.assertIn('privacy_rejected', str(e))
+        import hashlib, tempfile
+        from pathlib import Path
+        from maniac.synth_shai_referee import make_answer, Journal, RejectedAnswer
+        pii = 'Call John Citizen on 0412 345 678, john.citizen@example.com'
+        aa = (make_answer('SYNTHETIC-1', 'SYNTHETIC-1', 'SYNTHETIC-1', pii),
+              make_answer('SYNTHETIC-2', 'SYNTHETIC-1', 'SYNTHETIC-2', '421'))
+        self.assertIs(type(aa[0]), RejectedAnswer)
+        with self.assertRaises(ValueError):          # direct construction still rejects
+            Answer('SYNTHETIC-1', 'SYNTHETIC-1', 'SYNTHETIC-1', pii)
+        with tempfile.TemporaryDirectory() as d:
+            j = Journal(Path(d) / 'a.db')
+            r = j.record(PLAN, aa, PLAN.commitment)
+            self.assertEqual((r['state'], r['reason']), ('144 HOLD', 'privacy_rejected'))
+            self.assertIs(r['approval_granted'], False)
+            self.assertTrue(j.verify(r['audit_anchor']))
+            with j.connect() as db:
+                dump = repr(list(db.execute('SELECT * FROM audit')))
+            self.assertNotIn('john.citizen', dump); self.assertNotIn('0412 345', dump)
+            stored = j.read('SYNTHETIC-1')['answers'][0]
+            self.assertEqual(stored['raw_sha256'], hashlib.sha256(pii.encode()).hexdigest())
+            self.assertEqual(stored['raw_length'], len(pii))
+            self.assertTrue(stored['redacted'].startswith('REDACTED'))
+
+    def test_d3_personal_alias_is_redacted_too(self):
+        from maniac.synth_shai_referee import make_answer
+        a = make_answer('Bob Smith', 'SYNTHETIC-1', 'SYNTHETIC-1', '412')
+        self.assertNotIn('Bob', repr(a))
+        r = evaluate(PLAN, (a, ans('412')[0]), PLAN.commitment)
+        self.assertEqual(r['reason'], 'privacy_rejected')
 
     def test_e_approval_granted_always_false(self):
         for vals in [('412', '421'), ('400', '421'), ('412', None), ('412', '412')]:
