@@ -85,7 +85,7 @@ def evaluate(plan, answers, commitment):
                 disagreement=False, cosmetic_diff=False, check_output=None,
                 note='', gates=['144 HOLD', '444000 VERIFY / HUMAN APPROVAL'])
     try:
-        if type(plan) is not Plan or type(answers) is not tuple or not 2 <= len(answers) <= 16:
+        if type(plan) is not Plan or type(answers) is not tuple or not len(answers) <= 16:
             return base
         if commitment != plan.commitment:
             return dict(base, reason='commitment_mismatch')

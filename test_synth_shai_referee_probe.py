@@ -58,7 +58,6 @@ class Ported(unittest.TestCase):
         r = ev('412', None)
         self.assertEqual((r['state'], r['reason']), ('144 HOLD', 'insufficient_answers'))
 
-    @unittest.expectedFailure   # known spec mismatch in V0.1; see report
     def test_c2_single_model_only_reason_is_insufficient_answers(self):   # SPEC
         r = ev('412')
         self.assertEqual(r['state'], '144 HOLD')
