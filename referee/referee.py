@@ -125,6 +125,38 @@ def make_answer(model, version, attempt, raw):
                           len(blob), why)
 
 
+_ANSWER_KEYS = ('model', 'version', 'attempt', 'raw')
+
+
+def coerce_answers(answers):
+    """Single privacy boundary for evaluate() and Journal.record().
+    Every element is (re)built through make_answer(), so personal-looking or
+    non-numeric input always becomes a RejectedAnswer (sha256 + length + REDACTED)
+    and can never reach storage as raw text. Accepts Answer, RejectedAnswer,
+    a 4-tuple (model, version, attempt, raw) or a dict with exactly those keys.
+    Returns a tuple, or None for structurally invalid input (-> invalid_input HOLD)."""
+    if type(answers) is not tuple or len(answers) > 16:
+        return None
+    out = []
+    for a in answers:
+        if type(a) is RejectedAnswer:
+            try:
+                a.__post_init__()
+            except ValueError:
+                return None
+            out.append(a)
+        elif type(a) is Answer:
+            # Re-validate even frozen records (object.__setattr__ can tamper them).
+            out.append(make_answer(a.model, a.version, a.attempt, a.raw))
+        elif type(a) is tuple and len(a) == 4:
+            out.append(make_answer(*a))
+        elif type(a) is dict and tuple(sorted(a)) == tuple(sorted(_ANSWER_KEYS)):
+            out.append(make_answer(*(a[k] for k in _ANSWER_KEYS)))
+        else:
+            return None
+    return tuple(out)
+
+
 def check(plan):
     return str(sum((number(x) for x in plan.operands), Fraction(0)))
 
@@ -145,12 +177,11 @@ def evaluate(plan, answers, commitment):
                 disagreement=False, cosmetic_diff=False, check_output=None,
                 note='', gates=list(HOLD_GATES))
     try:
-        if type(plan) is not Plan or type(answers) is not tuple or not len(answers) <= 16:
+        answers = coerce_answers(answers)
+        if type(plan) is not Plan or answers is None:
             return base
         if commitment != plan.commitment:
             return dict(base, reason='commitment_mismatch')
-        if any(type(a) not in (Answer, RejectedAnswer) for a in answers):
-            return base
         # Revalidate frozen records as a defensive boundary.
         plan.__post_init__()
         for a in answers:
@@ -237,6 +268,8 @@ class Journal:
         return actual == expected_flags and (expected_anchor is None or previous == expected_anchor)
 
     def record(self, plan, answers, commitment):
+        # Persist exactly what was evaluated: the coerced (privacy-gated) answers.
+        answers = coerce_answers(answers)
         result = evaluate(plan, answers, commitment)
         if result['reason'] in ('invalid_input', 'internal_error', 'commitment_mismatch', 'duplicate_attempt'):
             return result  # Do not persist unvalidated input.

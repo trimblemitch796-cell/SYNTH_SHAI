@@ -184,6 +184,34 @@ class Ported(unittest.TestCase):
             self.assertTrue(j.verify(first['audit_anchor']))      # journal unchanged
             self.assertEqual(j.read('SYNTHETIC-1')['answers'][0]['raw'], '412')
 
+    def test_s_raw_inputs_cannot_bypass_privacy_record(self):
+        import tempfile
+        from pathlib import Path
+        from maniac.synth_shai_referee import Journal
+        pii = 'jane.doe@example.com'
+        tampered = ans('412')[0]
+        object.__setattr__(tampered, 'raw', pii)            # frozen record tampered after construction
+        cases = [
+            (('SYNTHETIC-1', 'SYNTHETIC-1', 'SYNTHETIC-1', pii), ans('421', '421')[1]),     # raw tuple
+            ({'model': 'SYNTHETIC-1', 'version': 'SYNTHETIC-1', 'attempt': 'SYNTHETIC-1', 'raw': pii},
+             ans('421', '421')[1]),                                                           # raw dict
+            (tampered, ans('421', '421')[1]),
+        ]
+        for i, aa in enumerate(cases):
+            with self.subTest(case=i), tempfile.TemporaryDirectory() as d:
+                self.assertEqual(evaluate(PLAN, aa, PLAN.commitment)['reason'], 'privacy_rejected')
+                j = Journal(Path(d) / 'a.db')
+                r = j.record(PLAN, aa, PLAN.commitment)
+                self.assertEqual((r['outcome'], r['reason']), ('HOLD', 'privacy_rejected'))
+                with j.connect() as db:
+                    self.assertNotIn('jane.doe', repr(list(db.execute('SELECT * FROM audit'))))
+                self.assertIn('raw_sha256', j.read('SYNTHETIC-1')['answers'][0])
+        # raw tuples of valid numbers work like Answer
+        r = evaluate(PLAN, (('SYNTHETIC-1', 'SYNTHETIC-1', 'SYNTHETIC-1', '412'),
+                            ('SYNTHETIC-2', 'SYNTHETIC-1', 'SYNTHETIC-2', '421')), PLAN.commitment)
+        self.assertEqual(r['outcome'], 'MATCH')
+        self.assertEqual(evaluate(PLAN, (object(), object()), PLAN.commitment)['reason'], 'invalid_input')
+
 
 if __name__ == '__main__':
     unittest.main()
