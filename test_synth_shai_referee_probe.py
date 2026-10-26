@@ -162,6 +162,20 @@ class Ported(unittest.TestCase):
         with patch('maniac.synth_shai_referee.check', side_effect=RuntimeError('x')):
             self.assertEqual(ev('412', '421')['outcome'], 'HOLD')
 
+    def test_q_replay_rejected_not_persisted(self):
+        import tempfile
+        from pathlib import Path
+        from maniac.synth_shai_referee import Journal
+        with tempfile.TemporaryDirectory() as d:
+            j = Journal(Path(d) / 'a.db')
+            first = j.record(PLAN, ans('412', '421'), PLAN.commitment)
+            r = j.record(PLAN, ans('421', '421'), PLAN.commitment)
+            self.assertEqual((r['outcome'], r['state'], r['reason']), ('HOLD', '144 HOLD', 'replay_rejected'))
+            self.assertIsNone(r['verdict']); self.assertIs(r['approval_granted'], False)
+            self.assertNotIn('audit_anchor', r)
+            self.assertTrue(j.verify(first['audit_anchor']))      # journal unchanged
+            self.assertEqual(j.read('SYNTHETIC-1')['answers'][0]['raw'], '412')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -107,7 +107,7 @@ class RefereeTests(unittest.TestCase):
     def test_replay_holds(self):
         for _ in range(2):
             r = self.journal.record(self.plan, answers('412', '421'), self.plan.commitment)
-        self.assertEqual(r['reason'], 'audit_failed')
+        self.assertEqual(r['reason'], 'replay_rejected')  # was 'audit_failed' before fix (5)
 
     def test_tampering_and_append_refusal(self):
         self.journal.record(self.plan, answers('412', '421'), self.plan.commitment)

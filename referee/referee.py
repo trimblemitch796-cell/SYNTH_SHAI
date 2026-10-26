@@ -246,6 +246,10 @@ class Journal:
                 db.execute('BEGIN IMMEDIATE')
                 if not self._verify(db):
                     raise ValueError('journal_integrity')
+                if db.execute('SELECT 1 FROM audit WHERE item_id=?', (plan.item_id,)).fetchone():
+                    db.rollback()
+                    return dict(result, outcome='HOLD', state='144 HOLD', verdict=None,
+                                reason='replay_rejected', gates=list(HOLD_GATES))  # not persisted
                 last = db.execute('SELECT hash FROM audit ORDER BY seq DESC LIMIT 1').fetchone()
                 previous = last[0] if last else '0' * 64
                 anchor = digest([previous, payload])
