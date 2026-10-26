@@ -76,6 +76,8 @@ SYNTH_SHAI is designed around a **fail-closed**, human-in-command approach. Curr
 
 These state names are design conventions, **not proof that a complete runtime safety system exists**. Future physical systems require hardware interlocks, fault containment, hazard analysis, and testing separate from software unit tests.
 
+**Threat model:** what SYNTH_SHAI does and doesn't protect against is in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
 ### 3.2 Approval rules
 
 1. **No silent permissions.** A passing automated check cannot authorize real-world action.
