@@ -1,6 +1,6 @@
 # SYNTH_SHAI threat model: what it does and doesn't protect against
 
-*Written 26 October 2026 against `main` at `31f617a`. Plain-English version for a hobbyist owner. Re-check the file references when the code changes.*
+*Originally written 26 October 2026 against `31f617a`; PR #48 trust-boundary changes reconciled 27 October 2026 against `406440d32eb4aa4ffb3d2e0622aa831ef9600745`. Author-maintained assessment, not independent review. Re-check references when code changes.*
 
 ## 1. Scope and status
 
@@ -66,7 +66,7 @@ Said plainly:
 
 | Item | Status |
 |---|---|
-| This threat model | Proposed in this PR (not yet reviewed) |
+| This threat model | Committed, including PR #48 corrections; independent review still required |
 | Ed25519-signed consent, approvals and audit entries, with operator keys pinned in trusted config | Not done |
 | Pin V3.1 trusted keys and challenges in trusted configuration instead of inside the envelope | **Done** (26 Oct 2026; `test_pinned_evidence_keys.py`) |
 | External anchoring of the audit head (e.g. a copy kept on another machine or service) | Not done |

@@ -6,9 +6,7 @@ trusted integration would still have to establish.
 
 ## Actors and inputs
 
-The current caller supplies candidate reports, an expected digest/challenge, public
-keys, sensor observations, consent assertions, operator text and local database
-paths. The prototype does not authenticate that caller or attest the host. An
+The trusted integration supplies pinned public keys and the local database path separately from untrusted envelopes. After PR #48, MANIAC issues single-use challenges bound to an expected report digest; the direct bridge/CLI instead requires the trusted caller to supply the expected digest and challenge. Untrusted inputs still include candidate reports, sensor observations, consent assertions and operator text. The prototype does not authenticate that caller or attest the host. An
 independent reviewer must consider malicious or mistaken callers, compromised keys,
 conflicting observations, stale inputs, storage faults and host compromise.
 

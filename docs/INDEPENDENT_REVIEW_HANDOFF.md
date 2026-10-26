@@ -4,6 +4,21 @@
 **Scope:** SYNTH_SHAI offline research prototype. No live deployment authorisation.  
 **Prepared:** 25 October 2026. The assessor must record the exact reviewed Git commit.
 
+## Review baseline and smallest starting package
+
+**Updated 27 October 2026:** start at commit `406440d32eb4aa4ffb3d2e0622aa831ef9600745` (PR #48 merged). Record any different assessed revision explicitly. [Release evidence reconciliation](RELEASE_SECURITY_CHECKLIST.md#pr-48-evidence-reconciliation--27-october-2026) links the same-commit CI logs: 442 tests, 33 offline scenarios exercised by tests, successful locked dependency installation and security jobs. These are project-maintained results, not independent review.
+
+For the PR #48 trust-boundary change, begin with:
+- This handoff, `THREAT_MODEL.md`, `TRUST_BOUNDARIES.md` and the release evidence reconciliation.
+- `shai_v31_bridge.py`, `verification_v3.py`, `verification_v3_1.py` and `maniac/evidence.py`; trace callers in `maniac/supervisor.py`, `maniac/recovery.py` and `shai/twin.py`.
+- `test_pinned_evidence_keys.py`, bridge/V3.1/replay tests and their imported fixtures. Use a full checkout to retain dependencies.
+- `requirements.txt`, `requirements-lock.txt` and the CI workflows.
+- For the benchmark-link fix: `maniac/benchmark.py`, `test_maniac_benchmark.py` and `FAIR_COMPARISON.md`.
+
+Verify rejection of envelope-supplied keys, unissued/reused challenges, wrong hashes and missing trust. Distinguish MANIAC's in-memory issued-challenge registry from SQLite's durable accepted-challenge history. The direct bridge/CLI trusts the separately supplied expected challenge and hash; it does not itself issue challenges. Local configuration, host integrity, real source independence and human identity remain external trust requirements.
+
+This focused entry point does not replace the wider security and specialist safeguarding scopes below.
+
 ## Reviewer independence and rules of engagement
 
 Engage qualified external cybersecurity and, separately, child-safeguarding specialists without prior implementation responsibility. Agree scope, legal/ethical permissions, handling of sensitive findings, budget, deadline and conflict declarations **before** granting access to any nonpublic records. Public repository code can be inspected without operational credentials. Never share real child data, secrets or live credentials.
@@ -17,7 +32,7 @@ Private vulnerability disclosures must use an owner-verified private channel; do
 Start with the author's threat model, [THREAT_MODEL.md](THREAT_MODEL.md), which lists known gaps.
 
 - [MISSION.md](MISSION.md): intended purpose and human control model.
-- [TRUST_BOUNDARIES.md](TRUST_BOUNDARIES.md): caller-supplied public keys, sensor inputs, operator text, consent and audit assumptions.
+- [TRUST_BOUNDARIES.md](TRUST_BOUNDARIES.md): verifier-held pinned keys, untrusted sensor inputs, caller-asserted operator identity/consent and audit assumptions.
 - [RELEASE_SECURITY_CHECKLIST.md](RELEASE_SECURITY_CHECKLIST.md): known review blockers, bounded CI/history scans and owner settings.
 - [V31_RELEASE_VERIFICATION.md](V31_RELEASE_VERIFICATION.md): replay and verification evidence limits.
 - [MANIAC_SUPERVISOR.md](MANIAC_SUPERVISOR.md), [V25_TRI5.md](V25_TRI5.md): offline supervisor and safeguarding advisory scope.
