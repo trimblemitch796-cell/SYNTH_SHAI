@@ -7,10 +7,60 @@ import hashlib
 import hmac
 import json
 import os
+import threading
+import time
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BYTES = 65536
+SEEN_TTL_SECONDS = 24 * 3600      # Meta retries webhooks for up to ~1 day
+SEEN_MAX_IDS = 10000
+
+
+class SeenIds:
+    """Bounded, TTL'd in-memory seen-set of WhatsApp message ids (thread-safe).
+    Limit: in-memory only; a restart forgets ids (a durable store is future work)."""
+    def __init__(self, ttl=SEEN_TTL_SECONDS, max_ids=SEEN_MAX_IDS, clock=time.monotonic):
+        self.ttl, self.max_ids, self.clock = ttl, max_ids, clock
+        self._ids = OrderedDict()
+        self._lock = threading.Lock()
+
+    def first_time(self, message_id) -> bool:
+        """True if this id has not been seen within the TTL; records it."""
+        now = self.clock()
+        with self._lock:
+            while self._ids and next(iter(self._ids.values())) <= now - self.ttl:
+                self._ids.popitem(last=False)
+            if message_id in self._ids:
+                return False
+            self._ids[message_id] = now
+            while len(self._ids) > self.max_ids:
+                self._ids.popitem(last=False)
+            return True
+
+
+SEEN = SeenIds()
+
+
+def new_messages(rows: list, seen: SeenIds) -> tuple:
+    """Split extracted rows into (new, duplicate_count). A row without a string id
+    cannot be deduplicated; it is kept (it is a HOLD draft anyway, never sent)."""
+    fresh, dupes = [], 0
+    for row in rows:
+        mid = row.get('id')
+        if isinstance(mid, str) and mid and not seen.first_time(mid):
+            dupes += 1
+            continue
+        fresh.append(row)
+    return fresh, dupes
+
+
+def verify_token_ok(expected: str, mode, provided) -> bool:
+    """Constant-time hub.verify_token check."""
+    if not expected or mode != ['subscribe'] or not isinstance(provided, list) or len(provided) != 1:
+        return False
+    return hmac.compare_digest(provided[0].encode(), expected.encode())
 
 def verify_signature(secret: str, raw: bytes, header: str) -> bool:
     if not secret or not header.startswith('sha256='):
@@ -66,8 +116,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(404, 'not found')
         params = parse_qs(url.query)
         token = os.environ.get('SHAI_VERIFY_TOKEN','')
-        ok = (bool(token) and params.get('hub.mode') == ['subscribe']
-              and params.get('hub.verify_token') == [token])
+        ok = verify_token_ok(token, params.get('hub.mode'), params.get('hub.verify_token'))
         return self.respond(200 if ok else 403, params.get('hub.challenge',[''])[0] if ok else 'forbidden')
 
     def do_POST(self):
@@ -90,8 +139,11 @@ class Handler(BaseHTTPRequestHandler):
             decisions = extract_messages(payload)
         except (ValueError, TypeError, AttributeError):
             return self.respond(400, 'invalid payload')
+        # Replay/duplicate protection: a retried message id gets 200 but no second HOLD.
+        decisions, duplicates = new_messages(decisions, SEEN)
         # Deliberately log only decision type and count: no phone numbers or message bodies.
         print(json.dumps({'event':'authenticated_webhook','text_messages':len(decisions),
+                          'duplicates_ignored':duplicates,
                           'states':[m['decision']['state'] for m in decisions]}), flush=True)
         return self.respond(200, 'accepted for review; no response sent')
 
