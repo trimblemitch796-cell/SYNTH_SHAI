@@ -3,7 +3,7 @@
 
 **NOT LIVE / NOT DEPLOYED / NOT INDEPENDENTLY REVIEWED.** No real AI provider integration, no outbound WhatsApp messages, no human-authentication or approval implementation. No changes have been pushed to GitHub by this package.
 
-This is a **self-contained, additive GitHub-ready folder** joining two uploaded prototypes. It preserves each implementation in separate directories and adds a small **offline synthetic-fixture integration seam**. In this repository it lives on branch `feature/whatsapp-referee-offline-v1`; the repo README and `.gitignore` were not replaced.
+This is a **self-contained, additive GitHub-ready folder** joining two uploaded prototypes. It preserves each implementation in separate directories and adds a small **offline synthetic-fixture integration seam**. Merged to main via PR #53; the repo README was not replaced.
 
 ## Layout
 
@@ -28,7 +28,7 @@ export SHAI_META_APP_SECRET='YOUR_META_APP_SECRET'
 python3 whatsapp/bridge.py
 ```
 
-`127.0.0.1:8080` is the default bind. Never commit real secrets. Do not publicly expose without secure HTTPS ingress, durable replay/idempotency controls, rate limits, identity authentication and independent review.
+`127.0.0.1:8080` is the default bind. Never commit real secrets. Binding to `0.0.0.0` prints a warning. Do not publicly expose without secure HTTPS ingress, identity authentication and independent review.
 
 ## Exact safety boundary
 
@@ -46,6 +46,18 @@ Title: `Add inbound-only WhatsApp bridge and offline numeric disagreement refere
 
 PR description: "Add two independent offline prototypes, a synthetic-only integration seam, tests and documentation. No auto-replies, provider API connectivity or action authority. Independent security review, webhook replay prevention, and authenticated review workflow remain open before deployment."
 
-## Local hygiene (from the package's .gitignore)
+## Hardening (fix/whatsapp-bridge-hardening-20261027)
 
-The package also ignored `.env` / `.env.*` (keeping `.env.example`). The repo `.gitignore` does not list these yet: never commit `SHAI_VERIFY_TOKEN` / `SHAI_META_APP_SECRET`; adding `.env*` to the repo `.gitignore` is recommended in a separate change.
+- **Persistent duplicate protection:** seen message ids are stored as SHA-256 hashes in SQLite (`SHAI_DEDUPE_DB`, default `.shai_data/whatsapp_seen_ids.sqlite`, gitignored), with a 24h TTL and a 10,000-row cap, and survive a restart. A duplicate returns 200 and creates no second HOLD. If the store errors, the webhook returns 503 so Meta retries (fail closed); the server refuses to start if the store is unusable.
+- **Rate limiting:** sliding windows per sender (keyed by a hash of `from`, never the number itself) and globally: `SHAI_RATE_PER_SENDER` (default 10), `SHAI_RATE_GLOBAL` (default 100), `SHAI_RATE_WINDOW_SECONDS` (default 60). Over-limit messages are dropped and counted in the log, with no HOLD created, and still return **200**: Meta retries non-2xx responses, so a 429 would cause a retry storm.
+- **Secrets:** the repo `.gitignore` now ignores `.env` and `.env.*` (but not `.env.example`) and `.shai_data/`.
+
+## Remaining gaps
+
+- The rate limiter is in memory (it resets on restart) and per-process; there is no shared limit across replicas.
+- Dropped (rate-limited) messages are not queued: they are lost by design.
+- There is no authenticated human-review queue and no outbound path (by design). Replies are never sent.
+- `referee_adapter.review_numeric_fixture` creates its plan immediately before evaluating: fixture-only, not a compliant pre-registration.
+- `maniac/audit.py` still leaks SQLite connections (3 ResourceWarnings in the full suite).
+- Referee: 111000 COMPARE/LEARN, Δ BALANCE and the human-decision (`operator_id`) path are not implemented.
+- There is no independent security review, and nothing is deployed.
