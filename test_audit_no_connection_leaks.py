@@ -26,6 +26,8 @@ def _sqlite_emits_resource_warning():
 
 
 SQLITE_WARNS = _sqlite_emits_resource_warning()
+# CI's Python 3.13 job sets this, so the guard can never silently skip there.
+REQUIRE_GUARD = os.environ.get("SHAI_REQUIRE_LEAK_GUARD") == "1"
 
 
 class AuditConnectionLeakTests(unittest.TestCase):
@@ -50,6 +52,11 @@ class AuditConnectionLeakTests(unittest.TestCase):
             conn.execute("SELECT 1")
             del conn
         self.assertTrue(self.leaks(leak), "leak detector is not working")
+
+    def test_guard_active_when_required(self):
+        if REQUIRE_GUARD:
+            self.assertTrue(SQLITE_WARNS, "SHAI_REQUIRE_LEAK_GUARD=1 but this Python does not emit "
+                                          "sqlite ResourceWarnings, so the leak guard would be blind")
 
     def test_audit_operations_do_not_leak(self):
         def ops():

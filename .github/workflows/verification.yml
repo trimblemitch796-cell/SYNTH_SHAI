@@ -30,3 +30,32 @@ jobs:
 
       - name: Run verification tests
         run: python -m unittest discover -v
+
+  # Python 3.13+ is the first CPython that emits ResourceWarning for unclosed
+  # sqlite3 connections, so this job is where the SQLite leak guard
+  # (test_audit_no_connection_leaks.py) is actually able to see leaks.
+  # Same SHA-pinned actions, read-only token and hash-locked dependencies as above;
+  # the existing 3.11 job (a required check) is unchanged.
+  offline-verification-py313:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Record resolved dependency versions
+        run: python -m pip freeze
+
+      - name: Run verification tests (ResourceWarning is an error; leak guard required)
+        env:
+          SHAI_REQUIRE_LEAK_GUARD: '1'
+        run: python -W error::ResourceWarning -m unittest discover -v
