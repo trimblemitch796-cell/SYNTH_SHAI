@@ -7,6 +7,9 @@ import hashlib
 import hmac
 import json
 import os
+import sqlite3
+from contextlib import closing
+from pathlib import Path
 import threading
 import time
 from collections import OrderedDict
@@ -40,7 +43,58 @@ class SeenIds:
             return True
 
 
-SEEN = SeenIds()
+DEFAULT_DEDUPE_DB = str(Path(__file__).resolve().parent.parent / '.shai_data' / 'whatsapp_seen_ids.sqlite')
+
+
+class SqliteSeenIds:
+    """Persistent seen-set (survives restart), same interface as SeenIds.
+    Stores only sha256(message id) and first-seen time; 24h TTL and a row cap.
+    Each call opens, commits and CLOSES its own connection (no ResourceWarnings);
+    BEGIN IMMEDIATE makes check-and-insert atomic across threads/processes."""
+    def __init__(self, path, ttl=SEEN_TTL_SECONDS, max_ids=SEEN_MAX_IDS, clock=time.time):
+        self.path, self.ttl, self.max_ids, self.clock = str(path), ttl, max_ids, clock
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        with closing(self._connect()) as db, db:
+            db.execute('CREATE TABLE IF NOT EXISTS seen (id_sha256 TEXT PRIMARY KEY, first_seen REAL NOT NULL)')
+            db.execute('CREATE INDEX IF NOT EXISTS seen_time ON seen(first_seen)')
+
+    def _connect(self):
+        return sqlite3.connect(self.path, timeout=10, isolation_level=None)
+
+    def first_time(self, message_id) -> bool:
+        key = hashlib.sha256(str(message_id).encode()).hexdigest()
+        now = self.clock()
+        with closing(self._connect()) as db:
+            db.execute('BEGIN IMMEDIATE')
+            try:
+                db.execute('DELETE FROM seen WHERE first_seen <= ?', (now - self.ttl,))
+                fresh = db.execute('INSERT OR IGNORE INTO seen VALUES (?, ?)', (key, now)).rowcount == 1
+                db.execute('DELETE FROM seen WHERE id_sha256 IN (SELECT id_sha256 FROM seen '
+                           'ORDER BY first_seen DESC LIMIT -1 OFFSET ?)', (self.max_ids,))
+                db.execute('COMMIT')
+            except BaseException:
+                db.execute('ROLLBACK')
+                raise
+        return fresh
+
+    def count(self) -> int:
+        with closing(self._connect()) as db:
+            return db.execute('SELECT COUNT(*) FROM seen').fetchone()[0]
+
+
+SEEN = None   # created lazily from SHAI_DEDUPE_DB (tests may patch in a SeenIds())
+_SEEN_LOCK = threading.Lock()
+
+
+def get_seen():
+    """Persistent store by default. The in-memory SeenIds is for tests only:
+    silently falling back to memory would lose dedupe on restart, so a store
+    error fails closed (HTTP 503, so Meta retries later) instead."""
+    global SEEN
+    with _SEEN_LOCK:
+        if SEEN is None:
+            SEEN = SqliteSeenIds(os.environ.get('SHAI_DEDUPE_DB', DEFAULT_DEDUPE_DB))
+        return SEEN
 
 
 def new_messages(rows: list, seen: SeenIds) -> tuple:
@@ -140,7 +194,11 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, TypeError, AttributeError):
             return self.respond(400, 'invalid payload')
         # Replay/duplicate protection: a retried message id gets 200 but no second HOLD.
-        decisions, duplicates = new_messages(decisions, SEEN)
+        try:
+            decisions, duplicates = new_messages(decisions, get_seen())
+        except (sqlite3.Error, OSError):
+            print(json.dumps({'event':'dedupe_store_unavailable'}), flush=True)
+            return self.respond(503, 'temporarily unavailable')
         # Deliberately log only decision type and count: no phone numbers or message bodies.
         print(json.dumps({'event':'authenticated_webhook','text_messages':len(decisions),
                           'duplicates_ignored':duplicates,
