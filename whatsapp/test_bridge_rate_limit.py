@@ -62,5 +62,16 @@ class HttpRateLimitTests(unittest.TestCase):
         self.assertEqual([(l['states'], l['rate_limited']) for l in logs], [(['144 HOLD'], 0), ([], 1)])
 
 
+class BindWarningTests(unittest.TestCase):
+    def test_bind_warning(self):
+        self.assertIsNone(bridge.bind_warning('127.0.0.1'))
+        for h in ('0.0.0.0', '::', ''):
+            self.assertIn('all interfaces', bridge.bind_warning(h))
+
+    def test_default_host_is_loopback(self):
+        import inspect
+        self.assertIn("os.environ.get('SHAI_HOST','127.0.0.1')", inspect.getsource(bridge))
+
+
 if __name__ == '__main__':
     unittest.main()

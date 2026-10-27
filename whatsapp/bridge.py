@@ -8,6 +8,7 @@ import hmac
 import json
 import os
 import sqlite3
+import sys
 from contextlib import closing
 from pathlib import Path
 import threading
@@ -274,10 +275,22 @@ class Handler(BaseHTTPRequestHandler):
                           'states':[m['decision']['state'] for m in decisions]}), flush=True)
         return self.respond(200, 'accepted for review; no response sent')
 
+def bind_warning(host: str):
+    """Warn when listening on all interfaces; the prototype must sit behind HTTPS ingress."""
+    if host.strip() in ('0.0.0.0', '::', '[::]', ''):
+        return ('WARNING: SHAI bridge bound to all interfaces (%s). Do not expose it directly to '
+                'the internet; use reviewed HTTPS ingress. Default is 127.0.0.1.' % (host or 'empty'))
+    return None
+
+
 if __name__ == '__main__':
     if not os.environ.get('SHAI_VERIFY_TOKEN') or not os.environ.get('SHAI_META_APP_SECRET'):
         raise SystemExit('Set SHAI_VERIFY_TOKEN and SHAI_META_APP_SECRET before starting.')
     host = os.environ.get('SHAI_HOST','127.0.0.1')
     port = int(os.environ.get('PORT','8080'))
+    warning = bind_warning(host)
+    if warning:
+        print(warning, file=sys.stderr, flush=True)
+    get_seen()   # fail at startup if the persistent dedupe store is unusable
     print(f'SHAI inbound-only prototype listening on {host}:{port}')
     ThreadingHTTPServer((host, port), Handler).serve_forever()
