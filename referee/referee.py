@@ -1,0 +1,220 @@
+"""SYNTH_SHAI bounded offline numeric referee, version 0.1.0.
+No model APIs, execution of submitted code, or approval authority.
+"""
+from dataclasses import dataclass, asdict
+from fractions import Fraction
+import hashlib
+import json
+from pathlib import Path
+import re
+import sqlite3
+from datetime import datetime, timezone
+
+
+def encode(value):
+    return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
+
+
+def digest(value):
+    return hashlib.sha256(encode(value).encode()).hexdigest()
+
+
+def number(value):
+    # Strings only: reject booleans, floats, exponents, NaN and unbounded inputs.
+    if not isinstance(value, str) or len(value) > 80:
+        raise ValueError('invalid_numeric_claim')
+    if not re.fullmatch(r'\s*[+-]?\d{1,30}(?:\.\d{1,30})?\s*', value):
+        raise ValueError('invalid_numeric_claim')
+    return Fraction(value.strip())
+
+
+def synthetic(value):
+    if not isinstance(value, str) or not re.fullmatch(r'SYNTHETIC-[0-9]{1,12}', value):
+        raise ValueError('synthetic_numeric_id_required')
+    return value
+
+
+@dataclass(frozen=True)
+class Plan:
+    """Construct BEFORE collecting answers. Immutable, bounded pinned input."""
+    item_id: str
+    operands: tuple
+    check: str = 'exact_sum_v1'
+
+    def __post_init__(self):
+        synthetic(self.item_id)
+        if type(self.operands) is not tuple or not 1 <= len(self.operands) <= 100:
+            raise ValueError('invalid_operands')
+        for operand in self.operands:
+            number(operand)
+        if self.check not in ('exact_sum_v1', 'none'):
+            raise ValueError('unknown_check')
+
+    @property
+    def commitment(self):
+        return digest({'plan': asdict(self), 'code_sha256': code_hash()})
+
+
+def code_hash():
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+@dataclass(frozen=True)
+class Answer:
+    # Model and version are numeric synthetic aliases; mapping is external.
+    model: str
+    version: str
+    attempt: str
+    raw: str | None
+
+    def __post_init__(self):
+        for value in (self.model, self.version, self.attempt):
+            synthetic(value)
+        if self.raw is not None:
+            number(self.raw)
+
+
+def check(plan):
+    return str(sum((number(x) for x in plan.operands), Fraction(0)))
+
+
+def evaluate(plan, answers, commitment):
+    """Pure decision. Unsupported/invalid data fail closed; no input text echoed."""
+    base = dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
+                verdict=None, reason='invalid_input', winners=[], losers=[],
+                disagreement=False, cosmetic_diff=False, check_output=None,
+                note='', gates=['144 HOLD', '444000 VERIFY / HUMAN APPROVAL'])
+    try:
+        if type(plan) is not Plan or type(answers) is not tuple or not 2 <= len(answers) <= 16:
+            return base
+        if commitment != plan.commitment:
+            return dict(base, reason='commitment_mismatch')
+        if any(type(a) is not Answer for a in answers):
+            return base
+        # Revalidate frozen records as a defensive boundary.
+        plan.__post_init__()
+        for a in answers:
+            a.__post_init__()
+        if len({a.attempt for a in answers}) != len(answers):
+            return dict(base, reason='duplicate_attempt')
+        present = [a for a in answers if a.raw is not None]
+        if len(present) < 2:
+            return dict(base, reason='insufficient_answers')
+        values = {number(a.raw) for a in present}
+        disagreement = len(values) > 1
+        base.update(disagreement=disagreement,
+                    cosmetic_diff=len(values) == 1 and len({a.raw for a in present}) > 1,
+                    note='Models disagreed; unresolved.' if disagreement else '')
+        if plan.check == 'none':
+            return dict(base, reason='no_registered_check')
+        first, second = check(plan), check(plan)
+        if first != second:
+            return dict(base, reason='check_unstable')
+        expected = Fraction(first)
+        winners = [a.attempt for a in present if number(a.raw) == expected]
+        losers = [{'attempt': a.attempt, 'reason': 'exact_sum_mismatch'}
+                  for a in present if number(a.raw) != expected]
+        if not winners:
+            return dict(base, outcome='NO_MATCH', reason='no_claim_matches',
+                        check_output=first, losers=losers)
+        # This check binds every passing answer to ONE exact value.
+        return dict(base, outcome='MATCH', state='444000 VERIFY REQUIRED',
+                    verdict=first, reason='exact_sum_match', winners=winners,
+                    losers=losers, check_output=first,
+                    note='Models disagreed; exact recomputation resolved the total.' if disagreement else '',
+                    gates=['555000 TRIANGULATE', '444000 VERIFY REQUIRED'])
+    except Exception:
+        return dict(base, reason='internal_error')
+
+
+class Journal:
+    """Transactional append API; separate linked audit/disagreement tables.
+    SQLite serializes writers. Hash-chain detects edits, not complete rewrites.
+    Keep the returned anchor externally to detect deletion/rewrite.
+    """
+    def __init__(self, path):
+        self.path = str(path)
+        with self.connect() as db:
+            db.executescript('''
+            CREATE TABLE IF NOT EXISTS audit (
+              seq INTEGER PRIMARY KEY, item_id TEXT UNIQUE NOT NULL,
+              payload TEXT NOT NULL, previous TEXT NOT NULL, hash TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS disagreements (
+              audit_ref TEXT PRIMARY KEY, payload TEXT NOT NULL);
+            ''')
+
+    def connect(self):
+        return sqlite3.connect(self.path, timeout=10)
+
+    def verify(self, expected_anchor=None):
+        try:
+            with self.connect() as db:
+                return self._verify(db, expected_anchor)
+        except (sqlite3.Error, ValueError, TypeError, KeyError):
+            return False
+
+    @staticmethod
+    def _verify(db, expected_anchor=None):
+        previous = '0' * 64
+        expected_flags = {}
+        for index, row in enumerate(db.execute('SELECT seq,item_id,payload,previous,hash FROM audit ORDER BY seq'), 1):
+            seq, item, payload, prev, current = row
+            data = json.loads(payload)
+            if seq != index or prev != previous or current != digest([previous, data]) or data['item_id'] != item:
+                return False
+            if data['result']['disagreement']:
+                expected_flags[current] = payload
+            previous = current
+        actual = dict(db.execute('SELECT audit_ref,payload FROM disagreements'))
+        return actual == expected_flags and (expected_anchor is None or previous == expected_anchor)
+
+    def record(self, plan, answers, commitment):
+        result = evaluate(plan, answers, commitment)
+        if result['reason'] in ('invalid_input', 'internal_error', 'commitment_mismatch', 'duplicate_attempt'):
+            return result  # Do not persist unvalidated input.
+        payload = dict(item_id=plan.item_id, item_sha256=digest(asdict(plan)),
+                       timestamp=datetime.now(timezone.utc).isoformat(),
+                       check={'id': plan.check, 'version': '1', 'code_sha256': code_hash(),
+                              'commitment': commitment},
+                       answers=[asdict(a) for a in answers], result=result,
+                       human_decision=None)
+        try:
+            with self.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                if not self._verify(db):
+                    raise ValueError('journal_integrity')
+                last = db.execute('SELECT hash FROM audit ORDER BY seq DESC LIMIT 1').fetchone()
+                previous = last[0] if last else '0' * 64
+                anchor = digest([previous, payload])
+                text = encode(payload)
+                db.execute('INSERT INTO audit(item_id,payload,previous,hash) VALUES (?,?,?,?)',
+                           (plan.item_id, text, previous, anchor))
+                if result['disagreement']:
+                    db.execute('INSERT INTO disagreements VALUES (?,?)', (anchor, text))
+            return dict(result, audit_anchor=anchor)
+        except (sqlite3.Error, ValueError, TypeError, KeyError):
+            return dict(outcome='NO_CHECK', state='144 HOLD', approval_granted=False,
+                        verdict=None, reason='audit_failed', disagreement=result['disagreement'])
+
+    def read(self, item_id):
+        synthetic(item_id)
+        with self.connect() as db:
+            if not self._verify(db):
+                raise ValueError('journal_integrity')
+            row = db.execute('SELECT payload FROM audit WHERE item_id=?', (item_id,)).fetchone()
+            return json.loads(row[0]) if row else None
+
+
+def message(result):
+    if result['state'] == '144 HOLD':
+        return '144 HOLD — awaiting human review'
+    suffix = ('\n' + result['note']) if result['note'] else ''
+    return f"Checked answer: {result['verdict']}. 444000 VERIFY required; no approval granted.{suffix}"
+
+
+if __name__ == '__main__':
+    plan = Plan('SYNTHETIC-1', ('200', '212'))
+    commitment = plan.commitment  # Capture before requesting answers.
+    answers = (Answer('SYNTHETIC-1', 'SYNTHETIC-1', 'SYNTHETIC-1', '412'),
+               Answer('SYNTHETIC-2', 'SYNTHETIC-1', 'SYNTHETIC-2', '421'))
+    print(message(evaluate(plan, answers, commitment)))
