@@ -12,7 +12,7 @@ This is a **self-contained, additive GitHub-ready folder** joining two uploaded 
 - `maniac/synth_shai_referee.py`: Mitch's SYNTH_SHAI Referee V0.1 with local spec fixes (insufficient_answers, privacy_rejected, HOLD labels/gates, check_unstable, replay_rejected). The package's original unfixed copy (`referee/`) was removed as a duplicate.
 - `test_integration.py`: demonstrates a synthetic 412-vs-421 disagreement resolves to checked 412 while retaining approval gate and never sending a message.
 - `docs/BRIDGE_ORIGINAL_README.md`, `docs/REFEREE_ORIGINAL_README.md`: original READMEs, retained for provenance. The package's spec copy was outdated (pre-PR #51) and was dropped; `docs/DISAGREEMENT_REFEREE_SPEC.md` is authoritative.
-- `.github/workflows/offline-tests.yml`: optional GitHub Actions tests; relocate this file to the repository's root `.github/workflows/` if integrating into the existing project.
+- CI: the package's `offline-tests.yml` workflow was dropped as redundant; the existing SHA-pinned `verification.yml` already runs `python -m unittest discover` (which includes `whatsapp/test_bridge.py` and `test_integration.py`) on every push and pull request.
 
 ## Test (Python 3.11+, no external packages)
 
