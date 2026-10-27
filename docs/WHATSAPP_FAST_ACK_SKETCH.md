@@ -11,6 +11,7 @@ Asking several models can take 3–10+ seconds, and Meta retries a webhook that 
 1. WhatsApp (Meta Cloud API) POSTs the incoming message to the FastAPI webhook.
 2. The webhook does only cheap checks (below), queues the work and returns **HTTP 200** immediately.
 3. A background worker calls the model orchestrator (one or many models, e.g. `/all`).
+   `/all` asks four models in parallel: ChatGPT, Claude, Grok and Gemini.
 4. Results pass through `555000 TRIANGULATE`, the disagreement referee, and the HOLD/consent gates.
 5. A **separate** reply is sent with the WhatsApp send-message API: an answer, or on `144 HOLD` a request for Mitch's decision.
 
