@@ -3,7 +3,7 @@
 Only pre-collected, synthetic numeric fixtures may enter the referee.
 This module is NOT called by the webhook; never infer plans from WhatsApp text.
 """
-from referee.referee import Plan, Answer, Journal, message
+from maniac.synth_shai_referee import Plan, Answer, Journal, message
 
 
 def review_numeric_fixture(item_id: str, operands: tuple[str, ...], answers: tuple[Answer, ...], journal_path: str) -> dict:

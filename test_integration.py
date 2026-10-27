@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from referee.referee import Answer
+from maniac.synth_shai_referee import Answer
 from whatsapp.referee_adapter import review_numeric_fixture
 from whatsapp.bridge import decide
 
