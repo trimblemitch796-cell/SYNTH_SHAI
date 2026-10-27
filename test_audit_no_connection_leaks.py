@@ -12,6 +12,22 @@ from contextlib import closing
 from maniac.audit import AuditChain, AuditError
 
 
+def _sqlite_emits_resource_warning():
+    """Feature-detect: does this Python warn when an unclosed sqlite3 connection is
+    collected? (CPython 3.13+ does; earlier versions do not, so the guard cannot
+    see leaks there and only the 3.13+ runs are meaningful.)"""
+    gc.collect()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", ResourceWarning)
+        conn = sqlite3.connect(":memory:")
+        del conn
+        gc.collect()
+    return any(issubclass(w.category, ResourceWarning) for w in caught)
+
+
+SQLITE_WARNS = _sqlite_emits_resource_warning()
+
+
 class AuditConnectionLeakTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -26,6 +42,8 @@ class AuditConnectionLeakTests(unittest.TestCase):
             gc.collect()
         return [w for w in caught if issubclass(w.category, ResourceWarning)]
 
+    @unittest.skipUnless(SQLITE_WARNS, "this Python does not emit ResourceWarning for unclosed "
+                                       "sqlite3 connections; leak guard is only meaningful on 3.13+")
     def test_detector_catches_a_deliberate_leak(self):
         def leak():
             conn = sqlite3.connect(self.path)
