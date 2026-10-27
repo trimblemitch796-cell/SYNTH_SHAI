@@ -35,6 +35,8 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 - Fair comparison (offline, author-written, not independently reviewed): `python3 -m maniac.benchmark` runs all 33 scenarios through SYNTH_SHAI, an E-stop + watchdog baseline and a human-approval-gate baseline, and writes [FAIR_COMPARISON.md](FAIR_COMPARISON.md). No superiority claim; see its limitations.
 - Fix: V3.1 evidence trust is pinned outside the envelope. `shai_v31_bridge.evaluate` takes pinned keys (`TrustConfig`, CLI `--trust-config`) plus the verifier's challenge and expected hash; an envelope must be exactly `{"record"}`. In MANIAC, challenges are issued by the verifier and are single-use (`BridgeChecker.issue_challenge`). Self-signed evidence, envelope-supplied keys, unissued or reused challenges, and missing trust all give 144 HOLD (`test_pinned_evidence_keys.py`).
 
+- CI: `verification.yml` adds an `offline-verification-py313` job (Python 3.13, `-W error::ResourceWarning`, `SHAI_REQUIRE_LEAK_GUARD=1`) so the SQLite leak guard from PR #55 is active in CI. The required 3.11 `offline-verification` check is unchanged. `test_ci_workflow_policy.py` checks offline that every workflow pins actions by full commit SHA and keeps `contents: read`.
+
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
 - [x] Optional V25 TRI5 assessment in `run_loop`, before any recorded human decision; a prior HOLD is preserved.
