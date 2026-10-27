@@ -2,6 +2,7 @@
 import json
 import os
 import sqlite3
+from contextlib import closing
 import unittest
 
 import test_maniac_loop as tml
@@ -31,7 +32,7 @@ class TestAuditRecordsOperator(tml.Base):
         path = os.path.join(self.tmp.name, "audit.sqlite")
         r, chain = self.run_it(self.scenario("sq"), human=("op-7", "APPROVED", "ok"), audit_path=path)
         self.assertEqual(r.status, BALANCED)
-        with sqlite3.connect(path) as conn:
+        with closing(sqlite3.connect(path)) as conn, conn:
             rows = [json.loads(p) for (p,) in conn.execute("SELECT payload FROM audit_entries")]
         human = [e for e in rows if e["gate"] == "HUMAN REVIEW"][0]
         self.assertEqual(json.loads(human["detail"])["operator_id"], "op-7")
