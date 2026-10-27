@@ -25,3 +25,11 @@ Thumbs.db
 # MANIAC 111000 COMPARE / LEARN lesson logs (local, offline)
 *.jsonl
 lessons/
+
+# Secrets (never commit SHAI_VERIFY_TOKEN / SHAI_META_APP_SECRET)
+.env
+.env.*
+!.env.example
+
+# WhatsApp bridge local data (dedupe SQLite)
+.shai_data/
