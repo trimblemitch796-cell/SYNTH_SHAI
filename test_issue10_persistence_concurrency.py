@@ -5,6 +5,7 @@ This tests same-host durability and documents trust limits. No real secrets or u
 import concurrent.futures
 import copy
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,7 +36,7 @@ class Issue10PersistenceAndConcurrency(CatharsisV31Tests):
         )
 
     def test_incompatible_replay_schema_holds(self):
-        with sqlite3.connect(self.database) as db:
+        with closing(sqlite3.connect(self.database)) as db, db:
             db.execute("CREATE TABLE used_challenges (challenge TEXT, extra TEXT)")
         self.assertEqual(
             verify_once(self.record, database_path=self.database, **self.arguments), HOLD

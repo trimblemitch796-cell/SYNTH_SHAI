@@ -1,6 +1,7 @@
 """Offline concurrency and replay checks for the V3.1 SQLite evidence gate."""
 import concurrent.futures
 import sqlite3
+from contextlib import closing
 import unittest
 import test_verification_v3_1 as v31_tests  # module import, so discover does not run those 15 tests twice
 from verification_v3_1 import HOLD, REVIEW_REQUIRED, verify_once
@@ -27,7 +28,7 @@ class ConcurrentReplayTests(unittest.TestCase):
 
     def test_replay_after_new_connection_stays_hold(self):
         self.assertEqual(self.evaluate(), REVIEW_REQUIRED)
-        with sqlite3.connect(self.database) as db:
+        with closing(sqlite3.connect(self.database)) as db, db:
             count = db.execute("SELECT COUNT(*) FROM used_challenges").fetchone()[0]
         self.assertEqual(count, 1)
         self.assertEqual(self.evaluate(), HOLD)
