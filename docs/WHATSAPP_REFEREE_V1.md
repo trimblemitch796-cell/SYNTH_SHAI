@@ -52,11 +52,33 @@ PR description: "Add two independent offline prototypes, a synthetic-only integr
 - **Rate limiting:** sliding windows per sender (keyed by a hash of `from`, never the number itself) and globally: `SHAI_RATE_PER_SENDER` (default 10), `SHAI_RATE_GLOBAL` (default 100), `SHAI_RATE_WINDOW_SECONDS` (default 60). Over-limit messages are dropped and counted in the log, with no HOLD created, and still return **200**: Meta retries non-2xx responses, so a 429 would cause a retry storm.
 - **Secrets:** the repo `.gitignore` now ignores `.env` and `.env.*` (but not `.env.example`) and `.shai_data/`.
 
+## 144 HOLD review queue (feature/hold-review-queue-20261028)
+
+Every new inbound text that passes the signature, dedupe and rate-limit checks is stored as a `PENDING_REVIEW` item in `whatsapp/review_queue.py`. The webhook still answers 200 straight away.
+
+- **Storage:** SQLite at `SHAI_REVIEW_DB`, default `.shai_data/whatsapp_review.sqlite`, which is gitignored. The DB is **sensitive**: it keeps the message text, because a human has to read it. The sender number and the message id are stored only as SHA-256 hashes. If the store fails, the webhook un-marks the ids as seen and returns 503, so Meta's retry is accepted later.
+- **Review endpoints** (same server):
+  - `GET /review/items[?status=PENDING_REVIEW|APPROVED_NOT_SENT|REJECTED]`;
+  - `GET /review/items/<HOLD-id>`;
+  - `POST /review/items/<HOLD-id>/approve|reject` with JSON `{"reviewer": "...", "reason": "..."}` (reason required, max 500 characters);
+  - `GET /review/audit`.
+- **Auth, fail closed:**
+  - `Authorization: Bearer <SHAI_REVIEW_TOKEN>`, compared in constant time.
+  - If the token is unset, shorter than 32 characters, or equal to `SHAI_VERIFY_TOKEN` or `SHAI_META_APP_SECRET`, the review endpoints return 503 and stay disabled.
+  - A wrong or missing token gets 401.
+  - Only loopback clients are accepted unless `SHAI_REVIEW_ALLOW_REMOTE=1` is set.
+- **Decisions:**
+  - One decision per item, so a re-decision gets 409 `already_decided`. Re-sending the identical decision is idempotent.
+  - The decisions table is append-only: SQLite triggers refuse UPDATE and DELETE, and held items can't be deleted.
+  - Each decision is hash-chained (`prev_hash` → `hash`) and checked by `verify_decisions()` and `/review/audit`.
+- **Approval sends nothing.** The approved status is `APPROVED_NOT_SENT`, every response carries `"sent": false`, and there is still no outbound code.
+
 ## Remaining gaps
 
 - The rate limiter is in memory (it resets on restart) and per-process; there is no shared limit across replicas.
 - Dropped (rate-limited) messages are not queued: they are lost by design.
-- There is no authenticated human-review queue and no outbound path (by design). Replies are never sent.
+- There is no outbound path (by design). Replies are never sent, even after approval.
+- The review token is a single shared bearer secret, not per-person identity. `reviewer` is self-declared, so it records who claims to have decided; it is not verified. There is no TLS, so keep review on loopback. There is no retention or erasure policy for message text yet.
 - `referee_adapter.review_numeric_fixture` creates its plan immediately before evaluating: fixture-only, not a compliant pre-registration.
 - `maniac/audit.py` still leaks SQLite connections (3 ResourceWarnings in the full suite).
 - Referee: 111000 COMPARE/LEARN, Δ BALANCE and the human-decision (`operator_id`) path are not implemented.
