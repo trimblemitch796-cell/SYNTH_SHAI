@@ -37,6 +37,8 @@ Progress is recorded as implemented milestones and outstanding review gates belo
 
 - CI: `verification.yml` adds an `offline-verification-py313` job (Python 3.13, `-W error::ResourceWarning`, `SHAI_REQUIRE_LEAK_GUARD=1`) so the SQLite leak guard from PR #55 is active in CI. The required 3.11 `offline-verification` check is unchanged. `test_ci_workflow_policy.py` checks offline that every workflow pins actions by full commit SHA and keeps `contents: read`.
 
+- WhatsApp 144 HOLD review queue (local branch `feature/hold-review-queue-20261028`): held messages are persisted for human review. Approve and reject are behind a separate, distinct `SHAI_REVIEW_TOKEN` (loopback-only by default) and recorded in an append-only, hash-chained decision log. Approval is `APPROVED_NOT_SENT`: nothing is ever sent. See [WHATSAPP_REFEREE_V1.md](WHATSAPP_REFEREE_V1.md).
+
 ## Offline completion work (PR #25 merged)
 - [x] Optional local SQLite audit storage, verified on reopen, with atomic appends and stale-writer rejection.
 - [x] Optional V25 TRI5 assessment in `run_loop`, before any recorded human decision; a prior HOLD is preserved.
