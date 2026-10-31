@@ -67,25 +67,12 @@ def _initialize(conn):
 
 
 def revoke_operator(operator_id, *, trusted_database_path):
-    """Trusted offline administrator operation only; no caller authentication.
+    """Legacy unauthenticated revocation API: always fail closed.
 
-    The surrounding host MUST authenticate this call and protect its database.
+    Use offline_operator_admin_v2.authenticated_revoke with separately pinned
+    administrator keys. No unsigned caller may mutate revocation state.
     """
-    if not _identifier(operator_id):
-        return False
-    try:
-        with closing(_database(trusted_database_path)) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                _initialize(conn)
-                conn.execute("INSERT OR IGNORE INTO revoked(operator_id) VALUES (?)", (operator_id,))
-                conn.commit()
-                return True
-            except Exception:
-                conn.rollback()
-                return False
-    except (OSError, sqlite3.Error, ValueError):
-        return False
+    return False
 
 
 def validate_once(request, approval, *, trusted_operator_keys, trusted_database_path, now):
