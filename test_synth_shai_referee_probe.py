@@ -44,9 +44,15 @@ class Ported(unittest.TestCase):
     def test11_deterministic(self):
         self.assertEqual(ev('412', '421'), ev('412', '421'))
 
-    @unittest.skip("N/A by design: only exact_sum_v1 exists, which binds every passer to one value")
-    def test_a_two_passers_differ_is_check_insufficient_hold(self):
-        pass
+    def test_a_two_passers_cannot_validate_conflicting_values(self):
+        # exact_sum_v1 has only one correct result. Two different values must
+        # never both appear in winners or be interpreted as equal evidence.
+        r = ev('412', '412.0', '421')
+        self.assertEqual(r['winners'], ['SYNTHETIC-1', 'SYNTHETIC-2'])
+        self.assertEqual([x['attempt'] for x in r['losers']], ['SYNTHETIC-3'])
+        self.assertEqual(r['verdict'], '412')
+        self.assertEqual(r['state'], '444000 VERIFY REQUIRED')
+        self.assertIs(r['approval_granted'], False)
 
     def test_b_two_passers_agree_match_winners_all_passers(self):
         r = ev('421', '412', '412.0')
@@ -126,9 +132,14 @@ class Ported(unittest.TestCase):
         with self.assertRaises(ValueError):
             ans('bob@example.com', 'bob@example.com')
 
-    @unittest.skip("N/A: result is a plain dict, no Verdict constructor")
-    def test_k_approval_granted_not_a_constructor_arg(self):
-        pass
+    def test_k_result_does_not_accept_external_approval_authority(self):
+        # Caller-controlled result dictionaries cannot change the verifier's
+        # next decision: approval must be false on every evaluated path.
+        r = ev('412', '421')
+        r['approval_granted'] = True
+        self.assertIs(ev('412', '421')['approval_granted'], False)
+        with self.assertRaises(TypeError):
+            evaluate(PLAN, ans('412', '421'), PLAN.commitment, approval_granted=True)
 
     def test_l_match_still_requires_verify(self):
         r = ev('412', '421')
@@ -142,9 +153,16 @@ class Ported(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 ans(bad, '12')
 
-    @unittest.skip("N/A by design: check recomputes from the plan, never runs on claims or item text")
-    def test_n_self_test_runs_on_claims_not_item_text(self):
-        pass
+    def test_n_check_recomputes_committed_plan_not_candidate_claims(self):
+        from maniac.synth_shai_referee import check
+        with patch('maniac.synth_shai_referee.check', wraps=check) as checker:
+            r = ev('999', '412')
+        self.assertEqual(checker.call_count, 2)
+        for call in checker.call_args_list:
+            self.assertIs(call.args[0], PLAN)
+        self.assertEqual(r['verdict'], '412')
+        self.assertEqual(r['winners'], ['SYNTHETIC-2'])
+        self.assertIs(r['approval_granted'], False)
 
     def test_o_hold_gate_path_includes_spec_gates(self):   # SPEC: 555000 ... 999000 on the HOLD path
         for vals in [('400', '421'), ('412',), ('412', None)]:
