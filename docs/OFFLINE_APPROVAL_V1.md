@@ -6,8 +6,9 @@ or execution capability**. A successful signature returns
 
 The verifier receives trusted public keys and the database path from its trusted
 host, not the request. Each signed approval binds one operator, exact request ID,
-action, plan SHA-256, nonce and expiry. Only one use of a nonce is permitted per
-local SQLite database. Expired, malformed, revoked, modified or replayed approvals
+action, plan SHA-256, nonce and expiry. Only one use of a nonce **and of an exact request ID** is permitted per
+local SQLite database. Re-signing the same request with another nonce does not
+re-authorize it; a distinct request ID is needed for a new reviewed action. Expired, malformed, revoked, modified or replayed approvals
 return `144 HOLD`. A trusted local administrator can revoke an operator; the
 surrounding host must authenticate and protect that administrative call.
 
