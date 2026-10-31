@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import warnings
 from contextlib import closing
+from unittest.mock import patch
 
 from maniac.audit import AuditChain, AuditError
 
@@ -44,14 +45,54 @@ class AuditConnectionLeakTests(unittest.TestCase):
             gc.collect()
         return [w for w in caught if issubclass(w.category, ResourceWarning)]
 
-    @unittest.skipUnless(SQLITE_WARNS, "this Python does not emit ResourceWarning for unclosed "
-                                       "sqlite3 connections; leak guard is only meaningful on 3.13+")
     def test_detector_catches_a_deliberate_leak(self):
-        def leak():
-            conn = sqlite3.connect(self.path)
-            conn.execute("SELECT 1")
-            del conn
-        self.assertTrue(self.leaks(leak), "leak detector is not working")
+        if SQLITE_WARNS:
+            # CPython 3.13+ provides an actual sqlite3 leak signal.
+            def leak():
+                conn = sqlite3.connect(self.path)
+                conn.execute("SELECT 1")
+                del conn
+            self.assertTrue(self.leaks(leak), "leak detector is not working")
+        else:
+            # Python 3.11 cannot emit the sqlite3 ResourceWarning. Instead,
+            # instrument the audit's own connection lifecycle directly and
+            # assert every acquired connection receives close(), including
+            # after an error. Do NOT pretend this is a warning-based detector.
+            acquired = []
+            original = AuditChain._connect
+
+            class TrackingConnection:
+                def __init__(self, conn):
+                    self.conn = conn
+                    self.closed = False
+
+                def __getattr__(self, attr):
+                    return getattr(self.conn, attr)
+
+                def __enter__(self):
+                    self.conn.__enter__()
+                    return self
+
+                def __exit__(self, *args):
+                    return self.conn.__exit__(*args)
+
+                def close(self):
+                    self.closed = True
+                    self.conn.close()
+
+            def tracked(chain):
+                wrapper = TrackingConnection(original(chain))
+                acquired.append(wrapper)
+                return wrapper
+
+            with patch.object(AuditChain, "_connect", tracked):
+                chain = AuditChain(self.path)
+                chain.append("GATE", "OK", "test")
+                with self.assertRaises(AuditError):
+                    AuditChain(self.path, expected_head="0" * 64)
+            self.assertGreaterEqual(len(acquired), 3)
+            self.assertTrue(all(x.closed for x in acquired),
+                            "audit did not close all instrumented connections")
 
     def test_guard_active_when_required(self):
         if REQUIRE_GUARD:
