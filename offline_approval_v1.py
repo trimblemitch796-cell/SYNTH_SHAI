@@ -120,6 +120,9 @@ def validate_once(request, approval, *, trusted_operator_keys, trusted_database_
                     return HOLD
                 conn.execute("INSERT INTO consumed(nonce) VALUES (?)", (approval["nonce"],))
                 conn.commit()
+            except Exception:
+                conn.rollback()
+                return HOLD
         return VALIDATED
     except (InvalidSignature, ValueError, TypeError, KeyError, OverflowError, UnicodeError, sqlite3.Error, OSError):
         return HOLD
