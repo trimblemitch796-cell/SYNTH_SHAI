@@ -71,9 +71,9 @@ class OfflineApprovalTests(unittest.TestCase):
     def test_unreasonably_long_expiry_holds(self):
         self.assertEqual(self.check(approval=self.make_approval(expires_at=self.now + 10000)), HOLD)
 
-    def test_revocation_holds(self):
-        self.assertTrue(revoke_operator("human-demo", trusted_database_path=self.db))
-        self.assertEqual(self.check(), HOLD)
+    def test_legacy_unsigned_revocation_fails_closed(self):
+        self.assertFalse(revoke_operator("human-demo", trusted_database_path=self.db))
+        self.assertEqual(self.check(), VALIDATED)
 
     def test_bad_storage_holds(self):
         self.assertEqual(self.check(db=":memory:"), HOLD)
