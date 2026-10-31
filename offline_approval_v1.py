@@ -62,6 +62,7 @@ def _database(db):
 
 def _initialize(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS consumed (nonce TEXT PRIMARY KEY)")
+    conn.execute("CREATE TABLE IF NOT EXISTS consumed_requests (request_id TEXT PRIMARY KEY)")
     conn.execute("CREATE TABLE IF NOT EXISTS revoked (operator_id TEXT PRIMARY KEY)")
 
 
@@ -105,6 +106,7 @@ def validate_once(request, approval, *, trusted_operator_keys, trusted_database_
                     conn.rollback()
                     return HOLD
                 conn.execute("INSERT INTO consumed(nonce) VALUES (?)", (approval["nonce"],))
+                conn.execute("INSERT INTO consumed_requests(request_id) VALUES (?)", (request["request_id"],))
                 conn.commit()
             except Exception:
                 conn.rollback()
