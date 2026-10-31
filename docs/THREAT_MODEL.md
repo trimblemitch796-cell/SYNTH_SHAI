@@ -5,6 +5,7 @@
 ## 1. Scope and status
 
 - SYNTH_SHAI is an **offline research prototype**. It is a set of Python modules plus tests and simulations that run on one computer.
+- **V2–V4 correction (1 November 2026):** Signed-administrator, default-deny dispatch, separate-process worker and Linux resource-limit code now exists as offline research implementations. Resource limits do **not** establish a complete security sandbox, authenticated trusted-operator identity, filesystem or network isolation, or authorization for live execution. Project-maintained tests are **not** an independent audit. All consequential use remains **`144 HOLD`** pending independent review and explicit human authorization. This correction supersedes older roadmap wording below where it labels all out-of-process research as absent.
 - It is **not a medical device**. `synth_shai_doctor/` is simulation-only and uses synthetic data only.
 - It is **not for real hardware yet**. The SHAI twin (`shai/twin.py`) moves simulated joints only. Step 8 (hardware) is waiting for a contractor, and needs the separate hardware safety work listed in README.md.
 - It makes no network calls and never approves anything by itself: `approval_granted` is always False.
@@ -49,7 +50,7 @@ In short: SYNTH_SHAI defends against **bad or hostile data passing through it**.
 | Separate-process races (two programs using the same files at once) | **Not tested** | SQLite transactions (`BEGIN IMMEDIATE`) guard the replay and audit stores, and a stale audit writer must reload. | `verification_v3_1.py`, `maniac/audit.py` | The concurrency tests use **threads in one process** (`ThreadPoolExecutor` in `test_v31_concurrent_replay.py` and `test_issue10_persistence_concurrency.py`). Multi-process behaviour is untested. |
 | Malicious local user or root | **No** | Nothing. They can read and edit the code, the databases and the audit file. | — | Out of scope for a local prototype; would need OS permissions, separate accounts and external anchoring. |
 | Compromised dependencies (e.g. `cryptography`) | Partly | Hash-pinned lock file, a `dependency-advisories` CI job (pip-audit) and a `reachable-history-secrets` job (gitleaks). Actions are pinned to commit SHAs. | `requirements-lock.txt`, `.github/workflows/release-security.yml` | Advisory scans only find *known* problems; a malicious new release or a compromised build machine isn't covered. |
-| Network attacks | N/A | The prototype makes no network calls. | — | Becomes in scope the moment anything is networked. |
+| Network attacks / isolation | Not independently validated | No network-isolation guarantee is established by the Linux resource-limit or separate-process prototype. | V2–V4 worker/dispatch research | Validate real filesystem/network access boundaries separately before even considering live use. |
 
 ## 5. What SYNTH_SHAI does NOT protect against
 
@@ -70,7 +71,7 @@ Said plainly:
 | Ed25519-signed consent, approvals and audit entries, with operator keys pinned in trusted config | Not done |
 | Pin V3.1 trusted keys and challenges in trusted configuration instead of inside the envelope | **Done** (26 Oct 2026; `test_pinned_evidence_keys.py`) |
 | External anchoring of the audit head (e.g. a copy kept on another machine or service) | Not done |
-| Out-of-process execution / sandbox, with gates in a separate process or OS user | Not done |
+| Separate-process research worker and Linux resource limits | Offline prototype present; **not** a complete sandbox, independent security boundary, or deployment authorization |
 | Adversarial tests: fuzzing, cross-process race tests, deliberate monkey-patching tests | Not done |
 
 ## 7. Credit and corrections
