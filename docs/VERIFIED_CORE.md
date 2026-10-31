@@ -5,6 +5,8 @@ tests ran successfully on the PR #61 candidate. It is not a claim that every
 module is production ready, or that all code has undergone independent review.
 The repository contains both working offline prototypes and unfinished designs.
 
+**V2–V4 security research status correction (1 November 2026):** Signed-administrator verification, default-deny dispatch, separate-process workers and Linux resource-limit mechanisms are **offline research prototypes**. They do not by themselves demonstrate trusted operator identity, filesystem or network isolation, a complete security sandbox, or permission for live execution. Project-maintained tests are not an independent audit. Consequential use remains **`144 HOLD`** until independent review and explicit human authorization. Implementation, testing, independent validation and deployment authorization must be tracked separately.
+
 ## Keep: demonstrated offline components
 
 | Component | Code | Evidence or limitation |
