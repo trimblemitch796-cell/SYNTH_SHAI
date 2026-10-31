@@ -2,6 +2,10 @@
 
 **Human-led intelligence • Verified reasoning • Safety before capability**
 
+**Start here:** [Verified Core Inventory](docs/VERIFIED_CORE.md) — a concise
+list of what has offline test evidence, what remains design-only, and what
+cannot yet be sold or deployed as a secure service.
+
 > **Connection before control. Truth before belief. Repair before rebuild.**  
 > **Preserve hope for what comes after us.**
 

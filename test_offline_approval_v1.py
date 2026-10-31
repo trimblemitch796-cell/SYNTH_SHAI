@@ -47,6 +47,18 @@ class OfflineApprovalTests(unittest.TestCase):
         self.assertEqual(self.check(), VALIDATED)
         self.assertEqual(self.check(), HOLD)
 
+    def test_same_request_new_signed_nonce_holds(self):
+        self.assertEqual(self.check(), VALIDATED)
+        fresh_signature = self.make_approval(nonce="another-unique-challenge-00002")
+        self.assertEqual(self.check(approval=fresh_signature), HOLD)
+
+    def test_distinct_request_new_signed_nonce_can_validate(self):
+        self.assertEqual(self.check(), VALIDATED)
+        new_request = {**self.request, "request_id": "request-002"}
+        second = self.make_approval(request_id="request-002",
+                                    nonce="another-unique-challenge-00002")
+        self.assertEqual(self.check(request=new_request, approval=second), VALIDATED)
+
     def test_missing_approval_holds(self):
         self.assertEqual(self.check(approval={}), HOLD)
 
