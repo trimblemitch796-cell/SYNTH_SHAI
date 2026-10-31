@@ -13,6 +13,8 @@ cannot yet be sold or deployed as a secure service.
 
 **Public research code only:** SYNTH_SHAI is not a hosted AI service, not a financial adviser, not an autonomous robotics controller, and not a medical device.
 
+**V2–V4 execution-boundary correction (1 November 2026) — 144 HOLD:** Signed-administrator, default-deny dispatch, separate-process worker and Linux resource-limit prototypes remain **offline research implementations**. Resource limits do **not** establish a complete security sandbox, trusted operator identity, filesystem or network isolation, or permission for live execution. Passing project-maintained tests does **not** constitute an independent audit or deployment authorization. **Consequential use remains at `144 HOLD`** pending independent review and explicit human authorization. See [the verified-core inventory](docs/VERIFIED_CORE.md) and [threat model](docs/THREAT_MODEL.md).
+
 ## 1. Mission
 
 SYNTH_SHAI is a long-term, human-governed research and engineering project exploring how helpful AI can combine useful reasoning with *explicit consent, evidence checks, uncertainty awareness, contradiction detection, safe recovery, and human accountability*.
