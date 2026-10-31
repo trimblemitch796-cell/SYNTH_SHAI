@@ -4,7 +4,6 @@ This is a research prototype. Trusted operator keys, database path, and clock
 must come from a separate trusted host. Never attach an actuator or network
 execution endpoint to this module.
 """
-import hashlib
 import hmac
 import json
 import math
