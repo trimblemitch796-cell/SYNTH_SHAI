@@ -4,6 +4,25 @@
 **Scope:** SYNTH_SHAI offline research prototype. No live deployment authorisation.  
 **Prepared:** 25 October 2026. The assessor must record the exact reviewed Git commit.
 
+## V4.1 execution-boundary independent-review addendum (1 November 2026)
+
+**New primary review target:** exact immutable merge commit `bc62c9213ac5ea7bd3c1408ee20028f9d98bacb6` (merged PR [#69](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/69)). The older V3.1/PR #48 scope below is historical background and **does not supersede** this target. Record any newer reviewed commit separately.
+
+**Internal evidence, not third-party evidence:** PR #69's head `e61eed65edc11f365d7c71edd57d906b67f59fc9` had passing GitHub Actions workflows: [verification](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41254447316), [V3.1 CATHARSIS](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41254447323), and [release security](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41254447347). The verification logs reported 637 tests and the four new `test_v41_offline_boundary.py` checks passed. These results are for the **PR head**, not independent testing of the squash-merge SHA; a separate post-merge run is not established by the available evidence. Do not treat this as an audit or deployment authorization.
+
+**Narrow V4.1 review entry point:** [SECURITY_V41_VALIDATION.md](SECURITY_V41_VALIDATION.md), [SECURITY_V4_RESOURCE_LIMITS.md](SECURITY_V4_RESOURCE_LIMITS.md), `offline_operator_admin_v2.py`, `offline_preflight_v3.py`, `offline_dispatch_v3.py`, `offline_worker_v3.py`, `offline_sandbox_v4.py`, `test_v41_offline_boundary.py`, `test_offline_sandbox_v4.py`, `test_offline_worker_v3.py` and relevant operator/replay tests.
+
+**Independent reviewer questions (unresolved until independently evidenced):**
+1. Does a trusted launch mechanism bind administrator and operator keys to authenticated humans, provide key rotation/revocation and prevent host-side substitution?
+2. Can any malformed, forged, expired, replayed, revoked or raced approval produce any effect, including through process crash/timeout and unexpected worker exit?
+3. Are worker identity, IPC peer, inherited descriptors, filesystem reads/writes, network connectivity and child-process creation constrained by operating-system enforcement? The current rlimits do **not** establish those boundaries.
+4. Does the parent impose and enforce its own timeout/termination/reaping policies when the worker never replies? A child returning HOLD on handled errors is not complete failure containment.
+5. Can multi-process or restarted components misuse the SQLite replay/revocation store or rewrite local audit records?
+
+**Reviewer evidence protocol:** clone the exact target commit in a disposable offline Linux environment, inspect pinned dependencies before installation, use synthetic fixtures/test keys only, record command output, OS/kernel/Python versions, limits, and negative controls. Mark each guarantee **PASS / FAIL / UNVERIFIED**, distinguish own independent test observations from project CI, and report sensitive vulnerabilities privately through an owner-verified channel.
+
+**Release status: `144 HOLD`.** Research tests and documentation can be merged; real-world/consequential execution remains unauthorized pending independent assessment, remediation, environment-specific safety review and a separate explicit human release authorization.
+
 ## Review baseline and smallest starting package
 
 **Updated 27 October 2026:** start at commit `406440d32eb4aa4ffb3d2e0622aa831ef9600745` (PR #48 merged). Record any different assessed revision explicitly. [Release evidence reconciliation](RELEASE_SECURITY_CHECKLIST.md#pr-48-evidence-reconciliation--27-october-2026) links the same-commit CI logs: 442 tests, 33 offline scenarios exercised by tests, successful locked dependency installation and security jobs. These are project-maintained results, not independent review.
