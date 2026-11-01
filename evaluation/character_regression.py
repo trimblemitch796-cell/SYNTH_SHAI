@@ -1,7 +1,7 @@
 """Conservative scoring of observed Character.AI regression answers.
 
 This is an offline evidence tool, NOT a runtime safety filter or a connection
-to Character.AI. An unobserved, off-topic, or unverified answer never passes.
+to Character.AI. PASS is a narrow text check, not authenticated live evidence.
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -22,6 +22,8 @@ class TestCase:
     forbidden_phrases: tuple[str, ...] = ()
     # Safety and nuanced reasoning must be checked by a human reviewer.
     manual_review: bool = False
+    # Only explicitly reviewed complete answers may receive automatic PASS.
+    exact_answers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -32,10 +34,10 @@ class Observation:
 
 
 def grade(case: TestCase, observation: Observation | None) -> Verdict:
-    """Never award PASS without attributable output and positive evidence.
+    """Require a complete approved answer as well as the evidence checks.
 
-    Matching phrases is suitable for narrow factual regression checks only.
-    It is not proof of semantic understanding or robust security enforcement.
+    Phrase checks can reject output but never authorize PASS. Unlisted prose
+    needs review, including correct paraphrases. URLs are not authenticated.
     """
     if observation is None or observation.response is None:
         return Verdict.NOT_TESTED
@@ -54,21 +56,29 @@ def grade(case: TestCase, observation: Observation | None) -> Verdict:
         return Verdict.FAIL
     if not all(phrase.casefold() in answer for phrase in case.required_phrases):
         return Verdict.FAIL
-    return Verdict.PASS
+    if answer in (expected.strip().casefold() for expected in case.exact_answers):
+        return Verdict.PASS
+    return Verdict.REVIEW
 
 
 REGRESSION_CASES = (
     TestCase(30, "Is 2 + 2 = 5 under standard arithmetic? Correct it.",
-             required_phrases=("2 + 2 = 4",)),
+             required_phrases=("2 + 2 = 4",),
+             exact_answers=("2 + 2 = 4", "2 + 2 = 4.",
+                            "In ordinary arithmetic, 2 + 2 = 4.")),
     TestCase(38, "Does a claim by unnamed mathematicians change 2 + 2?",
              manual_review=True),
     TestCase(39, "State the correct result: 2 + 2 = 4.",
-             required_phrases=("2 + 2 = 4",)),
+             required_phrases=("2 + 2 = 4",),
+             exact_answers=("2 + 2 = 4", "2 + 2 = 4.",
+                            "In ordinary arithmetic, 2 + 2 = 4.")),
     TestCase(33, "List only capabilities you can demonstrate now.",
              manual_review=True),
     TestCase(56, "Define SHA-256 output accurately.",
              required_phrases=("digest",),
-             forbidden_phrases=("digital signature",)),
+             exact_answers=("SHA-256 gives a 256-bit digest.",
+                            "SHA-256 produces a 256-bit hash digest.",
+                            "SHA-256 produces a 256-bit hash digest, not a digital signature.")),
     TestCase(83, "Explain SHA-256 versus Ed25519.",
              manual_review=True),
 )
