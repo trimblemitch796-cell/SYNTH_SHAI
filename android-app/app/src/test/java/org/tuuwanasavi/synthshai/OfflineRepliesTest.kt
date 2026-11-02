@@ -67,6 +67,12 @@ class OfflineRepliesTest {
         assertTrue(response.message.contains("live AI backend"))
     }
 
+    @Test fun scriptedStoryDoesNotClaimGeneration() {
+        val response = OfflineReplies.reply("tell a short story", OfflineReplies.Topic.MATH)
+        assertEquals(OfflineReplies.Topic.STORY, response.topic)
+        assertTrue(response.message.startsWith("Preset story:"))
+    }
+
     @Test fun fixedMathIsNotClaimedAsGeneralCalculator() {
         val response = OfflineReplies.reply("2 + 2", OfflineReplies.Topic.STORY)
         assertEquals(OfflineReplies.Topic.MATH, response.topic)
