@@ -29,6 +29,12 @@ Exact synthetic result only -> human review, NEVER permission to execute
 
 **Important:** A Python `multiprocessing` worker cannot authenticate itself as a trusted OS boundary. Python `os.setuid()`, rlimits, `close_fds`, or a process group by themselves do **not** prove isolation; a descendant can escape a process group, and `Process.start()` may block before the existing deadline begins. Do not elevate privilege to run acceptance tests. Never attach real capabilities to this design while any acceptance gate is open.
 
+## Baseline negative control — deliberately missing isolation
+
+`test_v5_isolation_negative_control.py` uses one spawned, **test-only** child, disposable synthetic text files, and a socket created without binding, connecting, or sending any packets. It applies the existing V4 rlimits and checks whether a child can still read/write the synthetic host path and construct an AF_INET socket. A passing result demonstrates **ambient access is possible**, not that filesystem or network access is securely isolated. Socket construction alone does **not** prove internet egress or successful connectivity.
+
+A local run on 2 November 2026 passed against an exact Git-blob-match copy of `offline_sandbox_v4.py` (blob `31d51e383df3f87b4544c211849aa900735d6910`). This is a **negative control**, not independent validation or acceptance of any V5 protection. The same test must pass in GitHub CI before it can be cited as repository evidence. No production code or sandbox policy is changed.
+
 ## Verification matrix (all currently UNVERIFIED)
 
 | Boundary | Smallest controlled offline acceptance test | Required evidence |
