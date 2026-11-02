@@ -1,5 +1,20 @@
 # Release and security checklist
 
+## Current 2 November 2026 main baseline — PR #72 post-merge verification
+
+- **Immutable revision:** `93708f8ae46a9d2f772adce4ead7215ca7270af2`, merged [PR #72](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/72). Exact-sha post-merge GitHub Actions:
+  - [Full verification](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397764): 654 discovered unittests PASS on Python 3.11 and separately 654 PASS on Python 3.13 (nine new parent lifecycle tests per interpreter).
+  - [V3.1 offline suite](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397810): 15 PASS, included in overall discovery.
+  - [Release security](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397822): dependency advisories and reachable-history secrets checks PASS.
+- **Change scope:** three new files: fixed-target `offline_parent_v41.py`, nine child-lifecycle tests, and `SECURITY_V41_PARENT_LIFECYCLE.md`; no live action adapter.
+- **Issue #9 wording criterion:** current [README](../README.md) explicitly says *public research code only*, not hosted AI, not financial adviser and not autonomous robotics controller. This establishes the **public statement** only; checkbox reconciliation is not a security audit or a release permit.
+- **Remaining V5 external boundary conditions:** blocking `Process.start()`, descendants outside direct child, trusted OS-level filesystem/network isolation, least-privilege host identity, authenticated IPC, protected clock/keys and local SQLite trust. See [V5 isolation contract](V5_OS_ISOLATION_CONTRACT.md) and [issue #73](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/73). No independent security or child-safeguarding review yet.
+- **Independent review:** [handoff](INDEPENDENT_REVIEW_HANDOFF.md) updated for the immutable main SHA; [issue #21](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/21) remains open. Internal CI is **NOT** independent evidence.
+- **Release decision:** **144 HOLD for consequential/live deployment**. The new offline tests may be merged as research; this does not authorize production, financial advice, medical use, or robotics control.
+
+Historical sections below remain as dated evidence and must not be mistaken for the current baseline.
+
+
 ## PR #48 evidence reconciliation — 27 October 2026
 
 Evidence baseline: `406440d32eb4aa4ffb3d2e0622aa831ef9600745`, the merge of [PR #48](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/48) on 26 October 2026. These results apply to that immutable revision; later changes need their own checks.

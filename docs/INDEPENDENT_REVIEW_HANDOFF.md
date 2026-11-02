@@ -4,6 +4,26 @@
 **Scope:** SYNTH_SHAI offline research prototype. No live deployment authorisation.  
 **Prepared:** 25 October 2026. The assessor must record the exact reviewed Git commit.
 
+## Current assessor entry point — 2 November 2026
+
+**Exact current review candidate:** `93708f8ae46a9d2f772adce4ead7215ca7270af2` (`main`, [PR #72 squash merge](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/72)). Freeze this SHA for the first review; if a later PR merges, separately record the new revision and retest it. The historical PR #48 starting point below is not the current baseline.
+
+**Author-maintained evidence for this exact revision** (NOT an audit):
+- [GitHub verification](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397764): 654 tests passed on Python 3.11; separately 654 on Python 3.13; nine V4.1 parent lifecycle regressions in each.
+- [V3.1 CATHARSIS](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397810): 15 tests passed (included in full discovery).
+- [Release security](https://github.com/trimblemitch796-cell/SYNTH_SHAI/actions/runs/41407397822): dependency and reachable-history jobs passed; scope-bounded only.
+- [Verified inventory](VERIFIED_CORE.md) and [release checklist](RELEASE_SECURITY_CHECKLIST.md) give historical and exact-SHA distinctions.
+
+**Focus for independent technical reviewer:** `offline_parent_v41.py`, `offline_sandbox_v4.py`, `offline_worker_v3.py`, `offline_dispatch_v3.py`, `offline_preflight_v3.py`, `offline_approval_v1.py`, `offline_operator_admin_v2.py`, `test_v41_parent_lifecycle.py`, `test_v41_offline_boundary.py`; also inspect the threat model, trust boundaries and [V5 isolation acceptance contract](V5_OS_ISOLATION_CONTRACT.md). Independently try to falsify the claims: hang/crash/partial reply, one-use replay after crashes, parent process-start stall, descendants, OS identity, filesystem, network, IPC peer spoofing, key custody, clock and SQLite tampering. Where a control is absent, mark **UNVERIFIED/NOT IMPLEMENTED**, not PASS.
+
+**Separate safeguarding specialist:** review V25 TRI5 / USHAI only as offline advisory artifacts; assess false positives/negatives, child privacy, consent, escalation limits and claims made to users. No use of live child data or participation by minors.
+
+**Proposed engagement:** volunteer/open-source scoped review or fixed-price assessment by independently qualified reviewers, contingent on their acceptance. Request independence/conflict declaration, scope, timeframe, deliverable/report, findings severity, safe reproduction and coordinated private disclosure. Do not claim anyone has agreed, been booked, or completed an assessment.
+
+**Safe reproduction:** isolated disposable Linux host, locked dependencies from `requirements.txt`; `python3 -m unittest discover -v`, `python3 -m unittest -v test_v41_parent_lifecycle test_v41_offline_boundary`; record exact SHA, OS/kernel, Python version, actual observed failures and timestamps. No production credentials, actual children, live networks, banking, medical advice or physical actuation.
+
+**Still blocked:** neither Python child-side rlimits nor parent direct-PID cleanup establish full OS sandboxing; trusted external startup deadline, process-tree containment, filesystem/network restriction, dedicated identity and authenticated IPC are open [issue #73](https://github.com/trimblemitch796-cell/SYNTH_SHAI/issues/73). `144 HOLD` remains for consequential use.
+
 ## Review baseline and smallest starting package
 
 **Updated 27 October 2026:** start at commit `406440d32eb4aa4ffb3d2e0622aa831ef9600745` (PR #48 merged). Record any different assessed revision explicitly. [Release evidence reconciliation](RELEASE_SECURITY_CHECKLIST.md#pr-48-evidence-reconciliation--27-october-2026) links the same-commit CI logs: 442 tests, 33 offline scenarios exercised by tests, successful locked dependency installation and security jobs. These are project-maintained results, not independent review.
