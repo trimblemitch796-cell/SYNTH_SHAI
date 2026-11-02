@@ -64,7 +64,7 @@ class OfflineRepliesTest {
         val response = OfflineReplies.reply("where are you and do you think")
         assertEquals(OfflineReplies.Topic.IDENTITY, response.topic)
         assertTrue(response.message.contains("do not independently think"))
-        assertTrue(response.message.contains("no live AI backend".replace("no live", "live AI").take(0)).not())
+        assertTrue(response.message.contains("live AI backend"))
     }
 
     @Test fun fixedMathIsNotClaimedAsGeneralCalculator() {
