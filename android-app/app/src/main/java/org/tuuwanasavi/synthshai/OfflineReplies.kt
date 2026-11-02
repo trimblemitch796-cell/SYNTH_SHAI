@@ -48,6 +48,13 @@ object OfflineReplies {
             )
         }
 
+        if (prompt.contains("tell a short story") || prompt.contains("tell me a story")) {
+            return Reply(
+                "Preset story: A little lantern lit the path home. Its light was small, however it helped everyone find their way.",
+                Topic.STORY
+            )
+        }
+
         if (prompt.contains("2+2") || prompt.contains("2 + 2")) {
             return Reply("2 + 2 = 4. This is a fixed example, not a general math engine.", Topic.MATH)
         }
