@@ -32,8 +32,10 @@ jobs:
       - name: Verify runner Android SDK and install API 35
         run: |
           echo "ANDROID_HOME=${ANDROID_HOME:?Android SDK missing on runner}"
-          sdkmanager --version
-          sdkmanager --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --version
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
