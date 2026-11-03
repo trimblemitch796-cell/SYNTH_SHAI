@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 from whatsapp import bridge
+from whatsapp._testutil import isolate_review_queue
 from whatsapp.bridge import SqliteSeenIds
 
 
@@ -52,6 +53,7 @@ class RestartHttpTests(unittest.TestCase):
                                       'SHAI_DEDUPE_DB': str(Path(self.d.name) / 'seen.sqlite')})
         env.start(); self.addCleanup(env.stop)
         p = patch.object(bridge, 'SEEN', None); p.start(); self.addCleanup(p.stop)
+        isolate_review_queue(self)
         lim = patch.object(bridge, 'LIMITER', None, create=True); lim.start(); self.addCleanup(lim.stop)
 
     def serve(self):
