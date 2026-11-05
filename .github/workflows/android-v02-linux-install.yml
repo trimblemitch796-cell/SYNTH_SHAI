@@ -32,7 +32,11 @@ jobs:
           sudo setfacl -m u:"$USER":rw /dev/kvm
           tools="$ANDROID_HOME/cmdline-tools/latest/bin"
           "$tools/sdkmanager" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
-          echo no | "$tools/avdmanager" create avd -n smoke -k "system-images;android-35;google_apis;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$tools/avdmanager" create avd --force --device pixel_2 -p "$ANDROID_AVD_HOME/smoke.avd" -n smoke -k "system-images;android-35;google_apis;x86_64"
+          printf 'avd.ini.encoding=UTF-8\npath=%s/smoke.avd\ntarget=android-35\n' "$ANDROID_AVD_HOME" > "$ANDROID_AVD_HOME/smoke.ini"
+          test -s "$ANDROID_AVD_HOME/smoke.avd/config.ini"
           nohup "$ANDROID_HOME/emulator/emulator" -avd smoke -memory 2048 -cores 2 -partition-size 2048 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 </dev/null &
           emulator_pid=$!
           export emulator_pid
