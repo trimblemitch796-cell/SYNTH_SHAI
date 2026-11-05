@@ -1,4 +1,4 @@
-name: Android V0.2 Offline Debug APK
+name: Android V0.2.1 Encouragement Debug APK
 
 on:
   push:
@@ -63,7 +63,78 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: SYNTH_SHAI_Android_v0.2_debug_APK
+          name: SHAI_Encouragement_v0.2.1_APK
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Boot Android 35 emulator
+        run: |
+          set -eu
+          sudo rm -rf /usr/local/lib/android/sdk/ndk /usr/share/dotnet
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          sudo setfacl -m u:"$USER":rw /dev/kvm
+          tools="$ANDROID_HOME/cmdline-tools/latest/bin"
+          "$tools/sdkmanager" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$tools/avdmanager" create avd --force --device pixel_2 -p "$ANDROID_AVD_HOME/smoke.avd" -n smoke -k "system-images;android-35;google_apis;x86_64"
+          printf 'avd.ini.encoding=UTF-8\npath=%s/smoke.avd\ntarget=android-35\n' "$ANDROID_AVD_HOME" > "$ANDROID_AVD_HOME/smoke.ini"
+          test -s "$ANDROID_AVD_HOME/smoke.avd/config.ini"
+          nohup "$ANDROID_HOME/emulator/emulator" -avd smoke -memory 2048 -cores 2 -partition-size 2048 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 </dev/null &
+          emulator_pid=$!
+          export emulator_pid
+          timeout 480 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do kill -0 "$emulator_pid" || exit 1; sleep 3; done' || { tail -100 emulator.log; adb devices; df -h .; exit 1; }
+      - name: Verify real notification timing and chat cancellation on Android
+        timeout-minutes: 10
+        run: |
+          set -eu
+          pkg=org.tuuwanasavi.synthshai.encouragement
+          adb install -g android-app/app/build/outputs/apk/debug/app-debug.apk
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
+          adb shell am start -W -n "$pkg/org.tuuwanasavi.synthshai.MainActivity"
+          tap_node() {
+            adb shell uiautomator dump /sdcard/nudge-ui.xml >/dev/null
+            adb pull /sdcard/nudge-ui.xml /tmp/nudge-ui.xml >/dev/null
+            coords=$(python - "$1" <<'PY'
+          import re, sys, xml.etree.ElementTree as ET
+          for node in ET.parse('/tmp/nudge-ui.xml').iter('node'):
+              if node.get('class') == sys.argv[1] or node.get('text') == sys.argv[1]:
+                  x1, y1, x2, y2 = map(int, re.findall(r'\d+', node.get('bounds')))
+                  print((x1+x2)//2, (y1+y2)//2)
+                  break
+          else:
+              raise SystemExit("Missing UI element: " + sys.argv[1])
+          PY
+            )
+            adb shell input tap $coords
+          }
+          send_chat() {
+            tap_node android.widget.EditText
+            adb shell input text "$1"
+            tap_node Send
+            sleep 1
+          }
+          active() {
+            adb shell cmd notification list | grep -F "|$pkg|$1|"
+          }
+          adb shell settings put global stay_on_while_plugged_in 7
+          send_chat help%sme%sstart
+          sleep 12
+          adb shell cmd notification list
+          adb shell logcat -d -s AndroidRuntime:E
+          adb shell uiautomator dump /sdcard/result.xml >/dev/null
+          adb shell cat /sdcard/result.xml
+          active 21
+          active 22
+          adb shell input keyevent KEYCODE_HOME
+          sleep 175
+          active 21
+          if active 22; then echo "Nudge outlasted window"; exit 1; fi
+          sleep 118
+          active 22
+          adb shell am start -W -n "$pkg/org.tuuwanasavi.synthshai.MainActivity"
+          send_chat 144hold
+          if active 21 || active 22; then echo "HOLD left notifications active"; exit 1; fi
