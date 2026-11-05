@@ -1,6 +1,12 @@
 package org.tuuwanasavi.synthshai
 
 import android.os.Bundle
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -71,7 +77,7 @@ private fun ShaiOfflineScreen() {
         mutableStateListOf(
             ChatLine(
                 0,
-                "Welcome to SYNTH_SHAI Android V0.2. This is an offline scripted demo, not a live AI service.",
+                "Welcome to SHAI Encouragement. Type “help me start” for a three-minute nudge every five minutes. Say “I’ve started” or “144 HOLD” to stop.",
                 false
             )
         )
@@ -80,13 +86,36 @@ private fun ShaiOfflineScreen() {
     var currentTopic by remember { mutableStateOf(OfflineReplies.Topic.NONE) }
     val listState = rememberLazyListState()
 
+    val context = LocalContext.current
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        messages.add(ChatLine(nextId++, if (granted) "Ready. Type “help me start” to begin." else "Reminders are off.", false))
+        while (messages.size > maxChatLines) messages.removeAt(0)
+    }
+
     fun sendMessage() {
         val typed = draft.trim()
         if (typed.isEmpty()) return
-        val response = OfflineReplies.reply(typed, currentTopic)
-        currentTopic = response.topic
+        val reply = when {
+            NudgeLoop.isStop(typed) -> {
+                NudgeService.stop(context)
+                "Encouragement stopped."
+            }
+            typed.equals("help me start", ignoreCase = true) -> when {
+                Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED -> {
+                    permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    "Allow notifications to use encouragement."
+                }
+                !NudgeService.prepare(context) -> "Enable encouragement notifications in Android settings first."
+                NudgeService.loop.lastNudge != null -> "Your encouragement session is already running."
+                else -> {
+                    NudgeService.start(context)
+                    "Pick one small step. Give yourself three minutes to begin."
+                }
+            }
+            else -> OfflineReplies.reply(typed, currentTopic).also { currentTopic = it.topic }.message
+        }
         messages.add(ChatLine(nextId++, typed, true))
-        messages.add(ChatLine(nextId++, response.message, false))
+        messages.add(ChatLine(nextId++, reply, false))
         // Bound session memory; never persist messages to disk or a service.
         while (messages.size > maxChatLines) messages.removeAt(0)
         draft = ""
