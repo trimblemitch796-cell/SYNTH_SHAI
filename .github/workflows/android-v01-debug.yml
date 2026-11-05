@@ -120,11 +120,17 @@ jobs:
           active() {
             adb shell cmd notification list | grep -F "|$pkg|$1|"
           }
+          adb shell settings put global stay_on_while_plugged_in 7
           send_chat help%sme%sstart
+          sleep 12
+          adb shell cmd notification list
+          adb shell logcat -d -s AndroidRuntime:E
+          adb shell uiautomator dump /sdcard/result.xml >/dev/null
+          adb shell cat /sdcard/result.xml
           active 21
           active 22
           adb shell input keyevent KEYCODE_HOME
-          sleep 185
+          sleep 175
           active 21
           if active 22; then echo "Nudge outlasted window"; exit 1; fi
           sleep 118
