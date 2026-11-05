@@ -26,12 +26,17 @@ jobs:
       - name: Boot Android 35 emulator
         run: |
           set -eu
+          sudo rm -rf /usr/local/lib/android/sdk/ndk /usr/share/dotnet
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           sudo setfacl -m u:"$USER":rw /dev/kvm
           tools="$ANDROID_HOME/cmdline-tools/latest/bin"
           "$tools/sdkmanager" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
           echo no | "$tools/avdmanager" create avd -n smoke -k "system-images;android-35;google_apis;x86_64"
-          nohup "$ANDROID_HOME/emulator/emulator" -avd smoke -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 </dev/null &
-          timeout 420 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do sleep 3; done'
+          nohup "$ANDROID_HOME/emulator/emulator" -avd smoke -memory 2048 -cores 2 -partition-size 2048 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 </dev/null &
+          emulator_pid=$!
+          export emulator_pid
+          timeout 480 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do kill -0 "$emulator_pid" || exit 1; sleep 3; done' || { tail -100 emulator.log; adb devices; df -h .; exit 1; }
       - name: Clean install and launch new APK
         run: |
           set -eu
