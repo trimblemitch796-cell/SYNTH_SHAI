@@ -71,20 +71,20 @@ private fun ShaiOfflineScreen() {
         mutableStateListOf(
             ChatLine(
                 0,
-                "Welcome to SYNTH_SHAI Android V0.2. This is an offline scripted demo, not a live AI service.",
+                "Welcome to SYNTH_SHAI Android V0.2.1. This is an offline scripted demo, not a live AI service.",
                 false
             )
         )
     }
     var draft by remember { mutableStateOf("") }
-    var currentTopic by remember { mutableStateOf(OfflineReplies.Topic.NONE) }
+    var lastReply by remember { mutableStateOf(OfflineReplies.Reply("", OfflineReplies.Topic.NONE)) }
     val listState = rememberLazyListState()
 
     fun sendMessage() {
         val typed = draft.trim()
         if (typed.isEmpty()) return
-        val response = OfflineReplies.reply(typed, currentTopic)
-        currentTopic = response.topic
+        val response = OfflineReplies.reply(typed, lastReply)
+        lastReply = response
         messages.add(ChatLine(nextId++, typed, true))
         messages.add(ChatLine(nextId++, response.message, false))
         // Bound session memory; never persist messages to disk or a service.

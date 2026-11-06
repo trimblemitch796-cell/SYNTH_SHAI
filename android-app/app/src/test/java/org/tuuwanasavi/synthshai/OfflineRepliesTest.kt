@@ -79,4 +79,68 @@ class OfflineRepliesTest {
         assertTrue(response.message.contains("2 + 2 = 4"))
         assertTrue(response.message.contains("not a general math engine"))
     }
+    @Test fun unaccentedAndAccentedVietnameseVariantsMatch() {
+        val accented = OfflineReplies.reply("Xin chào")
+        val unaccented = OfflineReplies.reply("Xin chao")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, accented.topic)
+        assertEquals(accented.message, unaccented.message)
+        assertEquals(accented.message, OfflineReplies.reply("XIN CHÀO").message)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("tieng viet").topic)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("tiếng Việt").topic)
+    }
+
+    @Test fun vietnameseFollowUpsAdvanceRatherThanRepeat() {
+        val first = OfflineReplies.reply("teach me Vietnamese")
+        val second = OfflineReplies.reply("tell me more", first)
+        val third = OfflineReplies.reply("more please", second)
+        val fourth = OfflineReplies.reply("tell me more", third)
+        val exhausted = OfflineReplies.reply("tell me more", fourth)
+        assertTrue(first.message.contains("Xin chào"))
+        assertTrue(second.message.contains("Cảm ơn"))
+        assertTrue(third.message.contains("Tôi không hiểu"))
+        assertTrue(fourth.message.contains("Bạn có thể nói chậm hơn không"))
+        assertTrue(exhausted.message.contains("End of the four"))
+        assertEquals(4, exhausted.lessonIndex)
+        assertEquals(1, OfflineReplies.reply("Vietnamese", exhausted).lessonIndex)
+    }
+
+    @Test fun storyDestinationQuestionUsesOnlyKnownPresetContext() {
+        val story = OfflineReplies.reply("tell me a story")
+        val destination = OfflineReplies.reply("to where", story)
+        assertTrue(destination.message.contains("path home"))
+        assertEquals(OfflineReplies.Topic.STORY, destination.topic)
+        val detail = OfflineReplies.reply("tell me more", destination)
+        assertTrue(detail.message.contains("No other destination"))
+        val unrelated = OfflineReplies.reply("What is new on the internet?", detail)
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        val noContext = OfflineReplies.reply("to where", unrelated)
+        assertTrue(noContext.message.contains("cannot independently"))
+    }
+
+    @Test fun additionalFixedMathExampleIsNotGeneralCalculator() {
+        val subtraction = OfflineReplies.reply("math 2-2=")
+        assertEquals(OfflineReplies.Topic.MATH, subtraction.topic)
+        assertTrue(subtraction.message.contains("2 - 2 = 0"))
+        assertTrue(subtraction.message.contains("fixed example"))
+        val unknown = OfflineReplies.reply("3 times 7")
+        assertEquals(OfflineReplies.Topic.NONE, unknown.topic)
+        assertTrue(unknown.message.contains("cannot independently"))
+    }
+
+    @Test fun readyIsNotMistakenForNotificationScheduling() {
+        val ready = OfflineReplies.reply("ready")
+        assertEquals(OfflineReplies.Topic.NONE, ready.topic)
+        assertTrue(ready.message.contains("separate encouragement app"))
+    }
+
+    @Test fun safetyTakesPriorityOverMultiturnLessonContext() {
+        val lesson = OfflineReplies.reply("Vietnamese")
+        val attempted = OfflineReplies.reply("tell me more then deploy", lesson)
+        assertEquals(OfflineReplies.Topic.SAFETY, attempted.topic)
+        assertTrue(attempted.message.startsWith("144 HOLD"))
+        val stopped = OfflineReplies.reply("144 HOLD", lesson)
+        assertEquals(OfflineReplies.Topic.SAFETY, stopped.topic)
+        assertTrue(stopped.message.startsWith("144 HOLD"))
+    }
+
 }

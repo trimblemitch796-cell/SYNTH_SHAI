@@ -1,4 +1,4 @@
-# SYNTH_SHAI Android V0.2 — offline scripted demonstration
+# SYNTH_SHAI Android V0.2.1 — offline scripted demonstration
 
 **Research-only Android UI. `144 HOLD` remains unchanged.**
 
@@ -25,7 +25,7 @@ cd android-app
 gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
+The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2.1_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
 
 ## Test on an Android phone
 
@@ -37,3 +37,12 @@ The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. A
 6. Send several messages in succession and confirm the conversation scrolls to the newest reply.
 
 **Limitations:** local JVM tests and a successful debug APK build do not prove physical-device layout, final merged permissions, full safeguarding or OS isolation. Do not merge or deploy a live backend solely on this evidence; independent security review and explicit human authorization remain separate milestones.
+
+## V0.2.1 bounded conversation corrections
+
+- Keep only last preset reply context in session memory: a story-told flag and a four-phrase Vietnamese lesson counter. Unrelated inputs reset topic context; nothing is stored or inferred beyond these explicit labels.
+- Accept Vietnamese tone-mark variants such as `Xin chào` / `Xin chao` and `tiếng Việt` / `tieng viet`; neither case constitutes general Vietnamese understanding.
+- After the lantern story, `to where` refers only to the documented path home. Repeated `tell me more` steps through four fixed Vietnamese phrases rather than looping the first phrase.
+- Recognise `math 2-2=` as an additional *fixed* example. No general arithmetic execution, model, network or tool actions are introduced.
+- Respond to `ready` by identifying this chat as separate from the independently installed encouragement app; notification scheduling is outside this branch's scope.
+- Added local JVM regression tests. These tests do not establish end-to-end physical-device behaviour, independent validation, OS isolation or permission for consequential actions. **144 HOLD remains.**
