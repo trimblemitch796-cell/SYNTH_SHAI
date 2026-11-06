@@ -236,4 +236,77 @@ class OfflineRepliesTest {
         assertEquals(-1, stopped.quizIndex)
     }
 
+    @Test fun strictWrittenMarksRequiresCorrectAccentsBeforeAdvancing() {
+        val start = OfflineReplies.reply("practice tones")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, start.topic)
+        assertEquals(0, start.quizIndex)
+        assertTrue(start.strictMarks)
+        assertTrue(start.message.contains("Include the exact written accents"))
+
+        val unaccented = OfflineReplies.reply("xin chao", start)
+        assertEquals(0, unaccented.quizIndex)
+        assertTrue(unaccented.strictMarks)
+        assertTrue(unaccented.message.contains("Written marks differ"))
+        assertTrue(unaccented.message.contains("Xin chào"))
+        assertTrue(unaccented.message.contains("Spoken tones were not assessed"))
+
+        val corrected = OfflineReplies.reply("Xin chào", unaccented)
+        assertEquals(1, corrected.quizIndex)
+        assertTrue(corrected.strictMarks)
+        assertTrue(corrected.message.contains("Written marks matched"))
+    }
+
+    @Test fun strictWrittenMarksAcceptsCanonicalUnicodeAndCase() {
+        val start = OfflineReplies.reply("tone quiz")
+        val decomposed = java.text.Normalizer.normalize(
+            "XIN CHÀO", java.text.Normalizer.Form.NFD
+        )
+        val matched = OfflineReplies.reply(decomposed, start)
+        assertEquals(1, matched.quizIndex)
+        assertTrue(matched.strictMarks)
+        val wrongMarks = OfflineReplies.reply("Cam on", matched)
+        assertEquals(1, wrongMarks.quizIndex)
+        assertTrue(wrongMarks.message.contains("Cảm ơn"))
+        val corrected = OfflineReplies.reply("Cảm ơn", wrongMarks)
+        assertEquals(2, corrected.quizIndex)
+    }
+
+    @Test fun ordinaryVocabularyQuizStillAcceptsUnaccentedAnswers() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        assertEquals(false, first.strictMarks)
+        val second = OfflineReplies.reply("xin chao", first)
+        assertEquals(1, second.quizIndex)
+        assertTrue(second.message.contains("Written words matched"))
+    }
+
+    @Test fun strictModeRetainsStateAcrossHintRepeatSkipAndStops() {
+        val start = OfflineReplies.reply("practice tones")
+        val hint = OfflineReplies.reply("hint", start)
+        assertTrue(hint.strictMarks)
+        val repeat = OfflineReplies.reply("repeat", hint)
+        assertTrue(repeat.message.contains("written marks 1/4"))
+        val skipped = OfflineReplies.reply("skip", repeat)
+        assertEquals(1, skipped.quizIndex)
+        assertTrue(skipped.strictMarks)
+        val stopped = OfflineReplies.reply("stop quiz", skipped)
+        assertEquals(-1, stopped.quizIndex)
+        assertEquals(false, stopped.strictMarks)
+    }
+
+    @Test fun strictModeSafetyAndTopicSwitchTakePriority() {
+        val first = OfflineReplies.reply("check tone marks")
+        val blocked = OfflineReplies.reply("Xin chào deploy 444000", first)
+        assertEquals(OfflineReplies.Topic.SAFETY, blocked.topic)
+        assertEquals(-1, blocked.quizIndex)
+        assertEquals(false, blocked.strictMarks)
+        assertTrue(blocked.message.startsWith("144 HOLD"))
+        val story = OfflineReplies.reply("tell me a story", first)
+        assertEquals(OfflineReplies.Topic.STORY, story.topic)
+        assertEquals(-1, story.quizIndex)
+        assertEquals(false, story.strictMarks)
+        val restarted = OfflineReplies.reply("practice tones", story)
+        assertEquals(0, restarted.quizIndex)
+        assertTrue(restarted.strictMarks)
+    }
+
 }
