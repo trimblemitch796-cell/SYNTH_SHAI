@@ -8,7 +8,7 @@ import unittest
 from urllib import error, request
 from unittest.mock import patch
 
-from openai_chat_gateway import SlidingWindowLimiter, make_handler, _extract_text, InvalidResponse
+from SYNTH_SHAI_staging_gateway.openai_chat_gateway import SlidingWindowLimiter, make_handler, _extract_text, InvalidResponse
 
 TOKEN = "local-testing-token-not-a-real-secret-123456789"
 

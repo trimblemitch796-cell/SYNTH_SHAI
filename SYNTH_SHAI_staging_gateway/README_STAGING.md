@@ -15,7 +15,9 @@
 
 ## Offline test command
 
-From this directory: python -m unittest -v test_openai_chat_gateway.py
+From the repository root: python -m unittest -v SYNTH_SHAI_staging_gateway.test_openai_chat_gateway
+
+Root `python -m unittest discover -v` now discovers this test package.
 
 The 15 tests use a local fake provider and never call the OpenAI API; no paid credit is required. This folder contains no environment values or API credentials and must not be deployed yet.
 
