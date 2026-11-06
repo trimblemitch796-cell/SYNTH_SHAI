@@ -1,4 +1,5 @@
 """Offline HTTP regression tests: no OpenAI calls and no Render deployment."""
+from datetime import datetime, timedelta, timezone
 import contextlib
 from http.server import ThreadingHTTPServer
 import json
@@ -8,7 +9,7 @@ import unittest
 from urllib import error, request
 from unittest.mock import patch
 
-from SYNTH_SHAI_staging_gateway.openai_chat_gateway import SlidingWindowLimiter, make_handler, _extract_text, InvalidResponse
+from SYNTH_SHAI_staging_gateway.openai_chat_gateway import SlidingWindowLimiter, make_handler, _extract_text, InvalidResponse, pilot_window_open, MAX_PILOT_SECONDS
 
 TOKEN = "local-testing-token-not-a-real-secret-123456789"
 
@@ -22,6 +23,10 @@ class ChatGatewayTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {
             "SHAI_GATEWAY_TOKEN": TOKEN,
             "OPENAI_API_KEY": "offline-fake-key",
+            "SHAI_PILOT_ENABLED": "1",
+            "SHAI_PILOT_DEADLINE_UTC": (
+                datetime.now(timezone.utc) + timedelta(hours=12)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ"),
         })
         self.env.start()
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(
@@ -104,6 +109,44 @@ class ChatGatewayTests(unittest.TestCase):
         self.server.RequestHandlerClass = make_handler(send_to_openai=broken)
         code, result = self.send({"message": "test"})
         self.assertEqual((code, result), (502, {"error": "upstream_unavailable"}))
+
+    def test_pilot_is_off_by_default(self):
+        with patch.dict(os.environ, {"SHAI_PILOT_ENABLED": "0"}):
+            self.assertFalse(pilot_window_open())
+            self.assertEqual(self.send({"message": "Hi"})[0], 503)
+        self.assertEqual(self.calls, [])
+
+    def test_expired_pilot_fails_closed(self):
+        past = "2026-11-01T00:00:00Z"
+        with patch.dict(os.environ, {"SHAI_PILOT_DEADLINE_UTC": past}):
+            self.assertFalse(pilot_window_open())
+            self.assertEqual(self.send({"message": "Hi"}), (503, {"error": "pilot_closed"}))
+            with self.assertRaises(error.HTTPError) as ctx:
+                request.urlopen(self.url + "/healthz", timeout=2)
+            self.assertEqual(ctx.exception.code, 503)
+        self.assertEqual(self.calls, [])
+
+    def test_missing_or_bad_cutoff_fails_closed(self):
+        for deadline in ("", "tomorrow", "2026-13-99T00:00:00Z", "2026-11-07T00:00:00+00:00"):
+            with self.subTest(deadline=deadline), patch.dict(os.environ, {"SHAI_PILOT_DEADLINE_UTC": deadline}):
+                self.assertFalse(pilot_window_open())
+                self.assertEqual(self.send({"message": "Hi"})[0], 503)
+        self.assertEqual(self.calls, [])
+
+    def test_pilot_max_seven_days(self):
+        fixed = datetime(2026, 11, 6, 7, tzinfo=timezone.utc).timestamp()
+        for days, expected in ((1, True), (7, True), (8, False)):
+            deadline = datetime.fromtimestamp(fixed, timezone.utc) + timedelta(days=days)
+            with self.subTest(days=days), patch.dict(os.environ, {
+                "SHAI_PILOT_DEADLINE_UTC": deadline.strftime("%Y-%m-%dT%H:%M:%SZ")
+            }):
+                self.assertEqual(pilot_window_open(now=fixed), expected)
+        self.assertFalse(pilot_window_open(now=float("nan")))
+
+    def test_closed_pilot_does_not_consume_api_credit(self):
+        with patch.dict(os.environ, {"SHAI_PILOT_ENABLED": ""}):
+            self.assertEqual(self.send({"message": "Hello"})[0], 503)
+        self.assertEqual(self.calls, [])
 
     def test_healthcheck_only(self):
         with request.urlopen(self.url + "/healthz") as response:

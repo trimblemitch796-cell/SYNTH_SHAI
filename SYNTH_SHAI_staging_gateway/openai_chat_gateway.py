@@ -7,9 +7,11 @@ Not approved for public/mobile deployment; see README_STAGING.md.
 from __future__ import annotations
 
 from collections import deque
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hmac
 import json
+import math
 import os
 import re
 import threading
@@ -19,6 +21,7 @@ from urllib import request
 MAX_BODY_BYTES = 4096
 MAX_MESSAGE_CHARS = 2000
 MAX_REQUESTS_PER_MINUTE = 5
+MAX_PILOT_SECONDS = 7 * 24 * 60 * 60
 OPENAI_ENDPOINT = "https://api.openai.com/v1/responses"
 MODEL = "gpt-4.1-mini"
 SYSTEM_PROMPT = (
@@ -77,6 +80,26 @@ def call_openai(api_key: str, message: str) -> str:
         raise InvalidResponse()
     return _extract_text(payload)
 
+def pilot_window_open(*, now=None) -> bool:
+    """Fail closed unless a trusted host configured an active <=7-day pilot.
+
+    The date is an absolute UTC cutoff, so restarting a process does not extend
+    the pilot. This gates requests, NOT Render billing or container lifetime.
+    """
+    if os.environ.get("SHAI_PILOT_ENABLED") != "1":
+        return False
+    stamp = os.environ.get("SHAI_PILOT_DEADLINE_UTC", "")
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", stamp):
+        return False
+    try:
+        deadline = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+        current = time.time() if now is None else now
+        return (type(current) in (int, float) and math.isfinite(current)
+                and 0 < deadline - current <= MAX_PILOT_SECONDS)
+    except (ValueError, OverflowError, OSError):
+        return False
+
+
 class SlidingWindowLimiter:
     """Single-process limiter, not a multi-instance security boundary."""
     def __init__(self, *, limit=MAX_REQUESTS_PER_MINUTE, window_seconds=60):
@@ -117,6 +140,9 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
 
         def do_GET(self):
             if self.path == "/healthz":
+                if not pilot_window_open():
+                    self._reply(503, {"status": "144 HOLD"})
+                    return
                 self._reply(200, {"status": "staging"})
             else:
                 self._reply(404, {"error": "not_found"})
@@ -124,6 +150,9 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
         def do_POST(self):
             if self.path != "/chat":
                 self._reply(404, {"error": "not_found"})
+                return
+            if not pilot_window_open():
+                self._reply(503, {"error": "pilot_closed"})
                 return
             expected = os.getenv("SHAI_GATEWAY_TOKEN", "")
             provided = self.headers.get("Authorization", "")
@@ -176,6 +205,8 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
 def main():
     if not os.getenv("OPENAI_API_KEY") or len(os.getenv("SHAI_GATEWAY_TOKEN", "")) < 32:
         raise SystemExit("Missing server-side API key or gateway token; refusing to start")
+    if not pilot_window_open():
+        raise SystemExit("144 HOLD: pilot disabled, expired, or invalid; refusing to start")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer(("127.0.0.1", port), make_handler())
     server.serve_forever()
