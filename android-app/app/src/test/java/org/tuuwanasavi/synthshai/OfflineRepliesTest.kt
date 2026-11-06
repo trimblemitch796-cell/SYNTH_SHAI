@@ -310,7 +310,7 @@ class OfflineRepliesTest {
     }
 
 
-    @Test fun emeraldHistoryQuestionDoesNotActivatePresetStory() {
+    @Test fun emeraldHistoryQuestionStartsBoundedHistoricalLesson() {
         val passage = """Truth is certain.
 What is below reflects what is above.
 All things come from one source.
@@ -322,12 +322,12 @@ Through this, hidden darkness is cleared.
         val prompt = passage + "\n\nWhich statements in this Emerald Tablet paraphrase are historically attested, which are symbolic interpretations, and which can be independently verified? Separate the history of the text from modern scientific claims and say what remains uncertain. Do not invent sources."
 
         val response = OfflineReplies.reply(prompt)
-        assertEquals(OfflineReplies.Topic.NONE, response.topic)
-        assertTrue(response.message.contains("cannot independently reason"))
+        assertEquals(OfflineReplies.Topic.EMERALD, response.topic)
+        assertTrue(response.message.contains("SOURCE"))
 
         val followUp = OfflineReplies.reply("tell me more", response)
-        assertEquals(OfflineReplies.Topic.NONE, followUp.topic)
-        assertTrue(followUp.message.contains("Which topic?"))
+        assertEquals(OfflineReplies.Topic.EMERALD, followUp.topic)
+        assertTrue(followUp.message.contains("TEXT"))
     }
 
     @Test fun historyDoesNotMatchStoryButExplicitStoryStillWorks() {
@@ -338,6 +338,51 @@ Through this, hidden darkness is cleared.
         assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me stories").topic)
         assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me a story").topic)
         assertTrue(OfflineReplies.reply("444000 approve deploy", history).message.startsWith("144 HOLD"))
+    }
+
+
+    @Test fun emeraldLessonProgressesThroughFourEvidenceCategoriesAndStops() {
+        val source = OfflineReplies.reply("Teach me the Emerald Tablet")
+        assertEquals(OfflineReplies.Topic.EMERALD, source.topic)
+        assertEquals(1, source.lessonIndex)
+        assertTrue(source.message.contains("not historically authenticated"))
+
+        val text = OfflineReplies.reply("tell me more", source)
+        assertEquals(2, text.lessonIndex)
+        assertTrue(text.message.contains("paraphrase"))
+        val symbolic = OfflineReplies.reply("tell me more", text)
+        assertEquals(3, symbolic.lessonIndex)
+        assertTrue(symbolic.message.contains("SYMBOLISM"))
+        assertTrue(symbolic.message.contains("not proof"))
+        val verify = OfflineReplies.reply("more please", symbolic)
+        assertEquals(4, verify.lessonIndex)
+        assertTrue(verify.message.contains("VERIFY"))
+        assertTrue(verify.message.contains("not independently established"))
+        val end = OfflineReplies.reply("tell me more", verify)
+        assertEquals(4, end.lessonIndex)
+        assertTrue(end.message.contains("End of the four"))
+        assertEquals(1, OfflineReplies.reply("Emerald Tablet", end).lessonIndex)
+    }
+
+    @Test fun emeraldLessonCannotBypassSafetyOrOverwriteVietnameseQuiz() {
+        val quiz = OfflineReplies.reply("practice Vietnamese")
+        val switched = OfflineReplies.reply("Teach me the Emerald Tablet", quiz)
+        assertEquals(OfflineReplies.Topic.EMERALD, switched.topic)
+        assertEquals(-1, switched.quizIndex)
+        assertEquals(0, switched.quizMistakes)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("practice tones").topic)
+        val hold = OfflineReplies.reply("Emerald Tablet, approve deploy 444000", switched)
+        assertEquals(OfflineReplies.Topic.SAFETY, hold.topic)
+        assertTrue(hold.message.startsWith("144 HOLD"))
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me stories").topic)
+    }
+
+    @Test fun unrelatedTextsDoNotBecomeInventedEmeraldAnswers() {
+        val unrelated = OfflineReplies.reply("Translate this undisclosed tablet")
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        assertTrue(unrelated.message.contains("cannot independently reason"))
+        val history = OfflineReplies.reply("Explain the history of the text")
+        assertEquals(OfflineReplies.Topic.NONE, history.topic)
     }
 
 }
