@@ -5,7 +5,7 @@ import java.util.Locale
 
 /** Fixed local responses only: no model, network, tools, approval service or execution. */
 object OfflineReplies {
-    enum class Topic { NONE, GREETING, IDENTITY, STORY, MATH, VIETNAMESE, SAFETY }
+    enum class Topic { NONE, GREETING, IDENTITY, STORY, MATH, VIETNAMESE, EMERALD, SAFETY }
 
     /** The extra fields describe only preset on-screen context; none is persisted. */
     data class Reply(
@@ -100,6 +100,9 @@ object OfflineReplies {
             return Reply("2 - 2 = 0. This is a fixed example, not a general math engine.", Topic.MATH)
         }
 
+        // Fixed, evidence-labelled Emerald Tablet lesson; no independent manuscript reading.
+        if (isEmeraldPrompt(prompt)) return emeraldLesson(0)
+
         val requestedTopic = when {
             prompt.contains("vietnamese") || prompt.contains("tieng viet") -> Topic.VIETNAMESE
             Regex("""\bmaths?\b""").containsMatchIn(prompt) -> Topic.MATH
@@ -143,6 +146,7 @@ object OfflineReplies {
                     Topic.MATH
                 )
                 Topic.VIETNAMESE -> nextVietnamese(previous.lessonIndex)
+                Topic.EMERALD -> emeraldLesson(previous.lessonIndex)
                 else -> Reply(
                     "I can switch between story, math and Vietnamese practice. Which topic?",
                     Topic.NONE
@@ -185,6 +189,10 @@ object OfflineReplies {
      * Neither mode can evaluate pronunciation or arbitrary Vietnamese grammar.
      */
     private fun handleQuiz(prompt: String, previous: Reply, rawInput: String): Reply? {
+        // Switch from a Vietnamese quiz into the separate Emerald lesson without
+        // recording the topic change as an incorrect Vietnamese answer.
+        if (isEmeraldPrompt(prompt)) return null
+
         // Strict written-mark checking is opt-in; keep the familiar accent-tolerant quiz.
         if (prompt == "practice tones" || prompt == "tone quiz" ||
             prompt == "practice vietnamese tones" || prompt == "check tone marks"
@@ -285,6 +293,57 @@ object OfflineReplies {
             Topic.VIETNAMESE,
             quizIndex = nextIndex,
             strictMarks = strictMarks
+        )
+    }
+
+    private fun isEmeraldPrompt(prompt: String): Boolean =
+        prompt.contains("emerald tablet") ||
+            prompt.contains("what is below reflects what is above")
+
+    /**
+     * Four preset educational responses, not a general Hermetic interpreter or
+     * language model. Historical sources and limitations are listed in docs/.
+     */
+    private fun emeraldLesson(index: Int): Reply = when (index) {
+        0 -> Reply(
+            "Emerald Tablet lesson 1/4 — SOURCE: This short alchemical text circulated " +
+                "in medieval Arabic and later Latin traditions. Its attribution to Hermes " +
+                "Trismegistus is traditional, not historically authenticated. " +
+                "This is a fixed offline lesson, not an independent manuscript check. " +
+                "Say 'tell me more' for TEXT.",
+            Topic.EMERALD, lessonIndex = 1
+        )
+        1 -> Reply(
+            "Emerald Tablet lesson 2/4 — TEXT: Historical versions include themes " +
+                "of above and below, a single source, Sun and Moon, wind and Earth, " +
+                "separating subtle from dense, ascent and descent. Your eight lines are " +
+                "a modern paraphrase, not a verified word-for-word translation. " +
+                "Wording varies across witnesses. Say 'tell me more' for SYMBOLISM.",
+            Topic.EMERALD, lessonIndex = 2
+        )
+        2 -> Reply(
+            "Emerald Tablet lesson 3/4 — SYMBOLISM: Above and below are often " +
+                "interpreted as correspondence; separation and return evoke alchemical " +
+                "transformation. The Sun, Moon, wind and Earth also carry symbolic " +
+                "roles. These interpretations are not proof of physical laws. " +
+                "Say 'tell me more' for VERIFY.",
+            Topic.EMERALD, lessonIndex = 3
+        )
+        3 -> Reply(
+            "Emerald Tablet lesson 4/4 — VERIFY: Historical manuscript witnesses " +
+                "and translations can be compared. Claims about literal cosmic forces " +
+                "or clearing darkness are not independently established scientific facts. " +
+                "For sources, consult Oxford's Cabinet of Curiosities on the Emerald " +
+                "Tablet and the Oxford Newton Project manuscript catalogue; this " +
+                "offline app does not browse or authenticate them. " +
+                "Say 'tell me more' to finish.",
+            Topic.EMERALD, lessonIndex = 4
+        )
+        else -> Reply(
+            "End of the four preset Emerald Tablet lessons. This is scripted " +
+                "historical education, not general reasoning or permanent AI learning. " +
+                "Say 'Emerald Tablet' to restart.",
+            Topic.EMERALD, lessonIndex = 4
         )
     }
 
