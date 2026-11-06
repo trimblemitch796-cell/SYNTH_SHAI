@@ -16,10 +16,10 @@ Use the Actions run for the **specific commit SHA** you intend to test. Download
 
 ## Running the Linux build
 
-Extract `SYNTH_SHAI_Linux_Offline_CLI.zip` on Linux and, with Java 17 or newer installed, run:
+Extract `SYNTH_SHAI_Linux_Offline_CLI.zip` on Linux. Use the directory name actually created by the archive (Gradle selects it), then with Java 17 or newer installed run:
 
 ```sh
-./linux-cli/bin/synth-shai-offline
+./<extracted-folder>/bin/synth-shai-offline
 ```
 
 The Linux build is a text-only **terminal application**, not the Android Compose UI or a Linux desktop app. It reuses the exact `OfflineReplies.kt` scripted reply engine compiled into Android. Try `practice Vietnamese`, `practice tones`, and `444000 approve deploy`; type `/exit` to quit.
