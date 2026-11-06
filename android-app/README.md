@@ -1,4 +1,4 @@
-# SYNTH_SHAI Android V0.2.2 — offline scripted demonstration
+# SYNTH_SHAI Android V0.2.3 — offline scripted demonstration
 
 **Research-only Android UI. `144 HOLD` remains unchanged.**
 
@@ -25,7 +25,7 @@ cd android-app
 gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2.2_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
+The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2.3_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
 
 ## Test on an Android phone
 
@@ -57,3 +57,11 @@ The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. A
 - Regression tests cover four-step progress, accented/unaccented responses, wrong-answer corrections, hints, skips, stop, topic changes, and safety priority.
 
 Physical-device testing is still required after CI. A successful unit test and debug APK are not independent validation. **144 HOLD remains.**
+
+## V0.2.3: opt-in written Vietnamese marks check
+
+- Enter `practice tones` (or `tone quiz`) for a separate four-question **written-mark accuracy** exercise using the same preset phrases.
+- Unlike the normal `practice Vietnamese` quiz, this mode requires Unicode-normalized spelling with the expected Vietnamese accents, vowel marks and letters. For example, `xin chao` triggers **"Written marks differ"**, displays the standard `Xin chào`, and stays on the same question; `Xin chào` advances.
+- The existing accent-tolerant vocabulary quiz is unchanged. Both modes use only four fixed examples. This is comparison of **typed characters**, not pronunciation, acoustic tone recognition, or broad language understanding.
+- The mode preserves hints, repeat, skip, stop, restart and explicit topic changes. `144 HOLD` and action blocking still run before lesson processing. No network, microphone, external tools, persistent data or new permissions.
+- Added Kotlin regression tests and a Linux-hosted Android UI smoke sequence for missing written marks, skipped questions and the hold response. Physical-device observation remains separate from CI. **144 HOLD remains.**

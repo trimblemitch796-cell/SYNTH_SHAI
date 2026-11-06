@@ -1,4 +1,4 @@
-name: Android V0.2.2 emulator UI smoke
+name: Android V0.2.3 emulator UI smoke
 
 on:
   pull_request:
@@ -93,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: shai-v022-emulator-ui-evidence
+          name: shai-v023-emulator-ui-evidence
           path: |
             emulator-last.png
             emulator-last.xml

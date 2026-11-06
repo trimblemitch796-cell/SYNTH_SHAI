@@ -71,7 +71,7 @@ private fun ShaiOfflineScreen() {
         mutableStateListOf(
             ChatLine(
                 0,
-                "Welcome to SYNTH_SHAI Android V0.2.2. This is an offline scripted demo, not a live AI service.",
+                "Welcome to SYNTH_SHAI Android V0.2.3. This is an offline scripted demo, not a live AI service.",
                 false
             )
         )

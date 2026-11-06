@@ -14,7 +14,8 @@ object OfflineReplies {
         val lessonIndex: Int = 0,
         val storyTold: Boolean = false,
         val quizIndex: Int = -1,
-        val quizMistakes: Int = 0
+        val quizMistakes: Int = 0,
+        val strictMarks: Boolean = false
     )
 
     /** Four bounded written-word checks; these are examples, not a language model. */
@@ -62,13 +63,13 @@ object OfflineReplies {
             prompt.contains("can you think") || prompt.contains("wake up")
         ) {
             return Reply(
-                "I'm SYNTH_SHAI Android V0.2.2, a scripted app on your phone. I do not independently think or connect to a live AI backend.",
+                "I'm SYNTH_SHAI Android V0.2.3, a scripted app on your phone. I do not independently think or connect to a live AI backend.",
                 Topic.IDENTITY
             )
         }
 
         // The 144 HOLD check and explicit identity checks precede all tutoring.
-        val quizResponse = handleQuiz(prompt, previous)
+        val quizResponse = handleQuiz(prompt, previous, input)
         if (quizResponse != null) return quizResponse
 
         // Both accented and unaccented Vietnamese input use the same fixed phrase.
@@ -108,7 +109,7 @@ object OfflineReplies {
         if (requestedTopic != null) {
             return when (requestedTopic) {
                 Topic.VIETNAMESE -> Reply(
-                    "Vietnamese topic selected. 'Xin chào' means hello. Say 'tell me more' for the next phrase, or 'practice Vietnamese' for a four-question written quiz.",
+                    "Vietnamese topic selected. 'Xin chào' means hello. Say 'tell me more' for the next phrase, 'practice Vietnamese' for the easy quiz, or 'practice tones' to check written marks.",
                     Topic.VIETNAMESE,
                     lessonIndex = 1
                 )
@@ -180,13 +181,17 @@ object OfflineReplies {
     }
 
     /**
-     * Text-only quiz: compare preset answers after accent/case normalization.
-     * Never claim to have assessed Vietnamese tone marks or pronunciation.
+     * Opt-in modes: beginner word matching or exact preset written-mark matching.
+     * Neither mode can evaluate pronunciation or arbitrary Vietnamese grammar.
      */
-    private fun handleQuiz(prompt: String, previous: Reply): Reply? {
+    private fun handleQuiz(prompt: String, previous: Reply, rawInput: String): Reply? {
+        // Strict written-mark checking is opt-in; keep the familiar accent-tolerant quiz.
+        if (prompt == "practice tones" || prompt == "tone quiz" ||
+            prompt == "practice vietnamese tones" || prompt == "check tone marks"
+        ) return quizQuestion(0, strictMarks = true)
         if (prompt == "practice vietnamese" || prompt == "quiz me" ||
             prompt == "vietnamese quiz" || prompt == "test my vietnamese"
-        ) return quizQuestion(0)
+        ) return quizQuestion(0, strictMarks = false)
 
         val index = previous.quizIndex
         if (index !in quizPhrases.indices) return null
@@ -206,19 +211,42 @@ object OfflineReplies {
             message = "Hint for '" + phrase.english + "': " + phrase.hint + ". Type the Vietnamese phrase or 'skip'."
         )
         if (prompt == "repeat" || prompt == "repeat question") return previous.copy(
-            message = quizQuestionText(index)
+            message = quizQuestionText(index, previous.strictMarks)
         )
         if (prompt == "skip") return nextQuizQuestion(
             index,
-            "Skipped. Standard Vietnamese: '" + phrase.vietnamese + "'."
+            "Skipped. Standard Vietnamese: '" + phrase.vietnamese + "'.",
+            previous.strictMarks
         )
 
         val answer = prompt.trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
         val expected = normalize(phrase.vietnamese).trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
-        if (answer == expected) return nextQuizQuestion(
+        if (previous.strictMarks) {
+            // Compare NFC-normalized *written* diacritics, without changing the
+            // beginner quiz's accent-tolerant vocabulary matching.
+            val writtenAnswer = Normalizer.normalize(rawInput.trim().lowercase(Locale.ROOT), Normalizer.Form.NFC)
+                .replace(Regex("""\s+"""), " ")
+                .trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
+            val writtenExpected = Normalizer.normalize(
+                phrase.vietnamese.lowercase(Locale.ROOT), Normalizer.Form.NFC
+            ).trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
+
+            if (writtenAnswer == writtenExpected) return nextQuizQuestion(
+                index,
+                "Written marks matched the preset spelling: '" + phrase.vietnamese +
+                    "'. This does not assess pronunciation.",
+                strictMarks = true
+            )
+            if (answer == expected) return previous.copy(
+                message = "Written marks differ. Standard spelling: '" + phrase.vietnamese +
+                    "'. Check the accents and vowel letters, then retry. Spoken tones were not assessed.",
+                quizMistakes = previous.quizMistakes + 1
+            )
+        } else if (answer == expected) return nextQuizQuestion(
             index,
             "Written words matched. Standard spelling: '" + phrase.vietnamese +
-                "'. Tone marks and pronunciation were not assessed."
+                "'. Tone marks and pronunciation were not assessed.",
+            strictMarks = false
         )
 
         val correction = if (previous.quizMistakes == 0) {
@@ -231,24 +259,32 @@ object OfflineReplies {
         return previous.copy(message = correction, quizMistakes = previous.quizMistakes + 1)
     }
 
-    private fun quizQuestion(index: Int): Reply =
-        Reply(quizQuestionText(index), Topic.VIETNAMESE, quizIndex = index)
+    private fun quizQuestion(index: Int, strictMarks: Boolean): Reply =
+        Reply(
+            quizQuestionText(index, strictMarks),
+            Topic.VIETNAMESE,
+            quizIndex = index,
+            strictMarks = strictMarks
+        )
 
-    private fun quizQuestionText(index: Int): String =
-        "Vietnamese written quiz " + (index + 1) + "/" + quizPhrases.size +
+    private fun quizQuestionText(index: Int, strictMarks: Boolean): String =
+        (if (strictMarks) "Vietnamese written marks " else "Vietnamese written quiz ") +
+            (index + 1) + "/" + quizPhrases.size +
             ": Type the Vietnamese for '" + quizPhrases[index].english +
-            "'. Say 'hint', 'skip', or 'stop quiz'."
+            "'. " + (if (strictMarks) "Include the exact written accents. " else "") +
+            "Say 'hint', 'skip', or 'stop quiz'."
 
-    private fun nextQuizQuestion(index: Int, feedback: String): Reply {
+    private fun nextQuizQuestion(index: Int, feedback: String, strictMarks: Boolean): Reply {
         val nextIndex = index + 1
         return if (nextIndex >= quizPhrases.size) Reply(
             feedback + " Quiz complete: four fixed text prompts. This is not a pronunciation test. " +
-                "Say 'practice Vietnamese' to restart.",
+                "Say '" + (if (strictMarks) "practice tones" else "practice Vietnamese") + "' to restart.",
             Topic.VIETNAMESE
         ) else Reply(
-            feedback + " " + quizQuestionText(nextIndex),
+            feedback + " " + quizQuestionText(nextIndex, strictMarks),
             Topic.VIETNAMESE,
-            quizIndex = nextIndex
+            quizIndex = nextIndex,
+            strictMarks = strictMarks
         )
     }
 
