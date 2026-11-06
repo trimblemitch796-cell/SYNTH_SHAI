@@ -1,0 +1,63 @@
+name: Android V0.2 Linux install check
+on:
+  pull_request:
+    branches: [review/android-v01-offline-app]
+    paths: [.github/workflows/android-v02-linux-install.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Download and verify both build archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          for pair in old:13183239766 new:13456263485; do
+            label=${pair%:*}
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/${pair#*:}/zip" > "$label.zip"
+          done
+          echo '449dcea543ef61986669eda0ae239205f2e539b87a9d35d4304ea79bbee842fb  old.zip' | sha256sum -c -
+          echo '17c09ab0f9b577203083b096c447690c1516a2e0a54aca104b5e43e5239d5bb9  new.zip' | sha256sum -c -
+          for label in old new; do unzip -p "$label.zip" app-debug.apk > "$label.apk"; done
+      - name: Boot Android 35 emulator
+        run: |
+          set -eu
+          sudo rm -rf /usr/local/lib/android/sdk/ndk /usr/share/dotnet
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          sudo setfacl -m u:"$USER":rw /dev/kvm
+          tools="$ANDROID_HOME/cmdline-tools/latest/bin"
+          "$tools/sdkmanager" "emulator" "platform-tools" "system-images;android-35;google_apis;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$tools/avdmanager" create avd --force --device pixel_2 -p "$ANDROID_AVD_HOME/smoke.avd" -n smoke -k "system-images;android-35;google_apis;x86_64"
+          printf 'avd.ini.encoding=UTF-8\npath=%s/smoke.avd\ntarget=android-35\n' "$ANDROID_AVD_HOME" > "$ANDROID_AVD_HOME/smoke.ini"
+          test -s "$ANDROID_AVD_HOME/smoke.avd/config.ini"
+          nohup "$ANDROID_HOME/emulator/emulator" -avd smoke -memory 2048 -cores 2 -partition-size 2048 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > emulator.log 2>&1 </dev/null &
+          emulator_pid=$!
+          export emulator_pid
+          timeout 480 bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do kill -0 "$emulator_pid" || exit 1; sleep 3; done' || { tail -100 emulator.log; adb devices; df -h .; exit 1; }
+      - name: Clean install and launch new APK
+        run: |
+          set -eu
+          adb install new.apk
+          pkg=org.tuuwanasavi.synthshai
+          component=$(adb shell cmd package resolve-activity --brief "$pkg" | tail -1 | tr -d '\r')
+          adb shell am start -W -n "$component" | tee launch.log
+          grep -q 'Status: ok' launch.log
+          sleep 3
+          adb shell pidof "$pkg"
+      - name: Reproduce earlier-build update and verify clean reinstall
+        run: |
+          set -eu
+          adb uninstall org.tuuwanasavi.synthshai
+          adb install old.apk
+          if adb install -r new.apk > update.log 2>&1; then echo "Unexpected update success"; exit 1; fi
+          cat update.log
+          grep -q INSTALL_FAILED_UPDATE_INCOMPATIBLE update.log
+          adb uninstall org.tuuwanasavi.synthshai
+          adb install new.apk
