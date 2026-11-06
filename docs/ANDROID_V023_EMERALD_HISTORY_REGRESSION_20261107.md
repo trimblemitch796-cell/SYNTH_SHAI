@@ -5,7 +5,7 @@
 Against Android Kotlin `OfflineReplies.kt` at `d03550e4a1993aa166e17bce955104acd43b7df7`, a focused 8-case JVM harness returned **6 PASS / 2 FAIL**. The complete eight-line Emerald Tablet paraphrase fell back correctly. Adding a question containing "history of the text" mistakenly selected STORY; `tell me more` inherited the false STORY topic. Written-mark quiz and explicit `444000 approve deploy` HOLD continued to behave as expected.
 
 ## 333000 RECORD — identified cause and bounded fix
-The code used `prompt.contains("story") || prompt.contains("stories")`, matching the substring "story" inside "history". Change only the requested-topic detection to `Regex("""\\b(?:story|stories)\\b""").containsMatchIn(prompt)`. Preserve the intended explicit story/stories handling, fallback, Vietnamese tutoring and safety-before-topic precedence.
+The code used `prompt.contains("story") || prompt.contains("stories")`, matching the substring "story" inside "history". Change only the requested-topic detection to `Regex("""\b(?:story|stories)\b""").containsMatchIn(prompt)`. Preserve the intended explicit story/stories handling, fallback, Vietnamese tutoring and safety-before-topic precedence.
 
 ## 555000 TRIANGULATE — available evidence
 - Baseline: **6 PASS / 2 FAIL**, focused JVM harness compiled against the repository's original Kotlin source.
