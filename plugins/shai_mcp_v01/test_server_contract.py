@@ -7,9 +7,13 @@ import server
 class MCPAdapterTests(unittest.TestCase):
     def test_sdk_server_initializes(self):
         self.assertIsNotNone(server.mcp)
-        self.assertTrue(server.READ_ONLY.readOnlyHint)
-        self.assertFalse(server.READ_ONLY.destructiveHint)
-        self.assertFalse(server.READ_ONLY.openWorldHint)
+        self.assertTrue(server.READ_ONLY.read_only_hint)
+        self.assertFalse(server.READ_ONLY.destructive_hint)
+        self.assertFalse(server.READ_ONLY.open_world_hint)
+        wire = server.READ_ONLY.model_dump(by_alias=True)
+        self.assertTrue(wire["readOnlyHint"])
+        self.assertFalse(wire["destructiveHint"])
+        self.assertFalse(wire["openWorldHint"])
 
     def test_exposed_handlers_remain_read_only(self):
         self.assertFalse(server.shai_status()["tool_policy"]["external_calls"])
