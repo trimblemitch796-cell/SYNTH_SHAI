@@ -40,7 +40,8 @@ jobs:
       - name: Smoke test Linux console, written Vietnamese and safety response
         run: |
           set -eu
-          app="android-app/linux-cli/build/install/linux-cli/bin/synth-shai-offline"
+          app="$(find android-app/linux-cli/build/install -type f -path '*/bin/synth-shai-offline' -print -quit)"
+          test -n "$app"
           test -x "$app"
           printf 'practice tones\nxin chao\n444000 approve deploy\n/exit\n' | "$app" | tee linux-smoke.log
           grep -Fq "Vietnamese written marks 1/4" linux-smoke.log
@@ -51,7 +52,9 @@ jobs:
         run: |
           set -eu
           mkdir -p deliverables/linux
-          cp android-app/linux-cli/build/distributions/linux-cli.zip deliverables/linux/SYNTH_SHAI_Linux_Offline_CLI.zip
+          archive="$(find android-app/linux-cli/build/distributions -maxdepth 1 -type f -name '*.zip' -print -quit)"
+          test -n "$archive"
+          cp "$archive" deliverables/linux/SYNTH_SHAI_Linux_Offline_CLI.zip
           cd deliverables/linux
           sha256sum SYNTH_SHAI_Linux_Offline_CLI.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
