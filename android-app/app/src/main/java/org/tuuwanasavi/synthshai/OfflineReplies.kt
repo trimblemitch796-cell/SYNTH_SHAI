@@ -109,7 +109,9 @@ object OfflineReplies {
             }
         }
 
-        if (prompt == "tell me more" || prompt == "more please") {
+        // Ignore optional sentence-ending punctuation for the two fixed follow-ups.
+        val followUp = prompt.trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
+        if (followUp == "tell me more" || followUp == "more please") {
             return when (previous.topic) {
                 Topic.STORY -> if (previous.storyTold) {
                     Reply(

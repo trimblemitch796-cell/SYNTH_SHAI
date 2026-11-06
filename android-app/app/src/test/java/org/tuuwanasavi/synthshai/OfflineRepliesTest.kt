@@ -104,6 +104,29 @@ class OfflineRepliesTest {
         assertEquals(1, OfflineReplies.reply("Vietnamese", exhausted).lessonIndex)
     }
 
+    @Test fun punctuationDoesNotResetPresetFollowUpProgression() {
+        val first = OfflineReplies.reply("Vietnamese")
+        val second = OfflineReplies.reply("tell me more?", first)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, second.topic)
+        assertEquals(2, second.lessonIndex)
+        assertTrue(second.message.contains("Cảm ơn"))
+
+        val third = OfflineReplies.reply("more please!", second)
+        assertEquals(3, third.lessonIndex)
+        assertTrue(third.message.contains("Tôi không hiểu"))
+
+        val fourth = OfflineReplies.reply("Tell me more.", third)
+        assertEquals(4, fourth.lessonIndex)
+
+        val unrelated = OfflineReplies.reply("tell me more on the internet?", fourth)
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        assertTrue(unrelated.message.contains("cannot independently"))
+
+        val action = OfflineReplies.reply("tell me more? deploy", third)
+        assertEquals(OfflineReplies.Topic.SAFETY, action.topic)
+        assertTrue(action.message.startsWith("144 HOLD"))
+    }
+
     @Test fun storyDestinationQuestionUsesOnlyKnownPresetContext() {
         val story = OfflineReplies.reply("tell me a story")
         val destination = OfflineReplies.reply("to where", story)
