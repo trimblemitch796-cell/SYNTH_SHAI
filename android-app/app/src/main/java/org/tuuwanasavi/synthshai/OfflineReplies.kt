@@ -12,7 +12,18 @@ object OfflineReplies {
         val message: String,
         val topic: Topic,
         val lessonIndex: Int = 0,
-        val storyTold: Boolean = false
+        val storyTold: Boolean = false,
+        val quizIndex: Int = -1,
+        val quizMistakes: Int = 0
+    )
+
+    /** Four bounded written-word checks; these are examples, not a language model. */
+    private data class Phrase(val english: String, val vietnamese: String, val hint: String)
+    private val quizPhrases = listOf(
+        Phrase("hello", "Xin chào", "first word is 'Xin'"),
+        Phrase("thank you", "Cảm ơn", "first word is 'Cảm'"),
+        Phrase("I don't understand", "Tôi không hiểu", "first word is 'Tôi'"),
+        Phrase("Can you speak more slowly?", "Bạn có thể nói chậm hơn không?", "first word is 'Bạn'")
     )
 
     private val blockedActions = listOf(
@@ -51,10 +62,14 @@ object OfflineReplies {
             prompt.contains("can you think") || prompt.contains("wake up")
         ) {
             return Reply(
-                "I'm SYNTH_SHAI Android V0.2.1, a scripted app on your phone. I do not independently think or connect to a live AI backend.",
+                "I'm SYNTH_SHAI Android V0.2.2, a scripted app on your phone. I do not independently think or connect to a live AI backend.",
                 Topic.IDENTITY
             )
         }
+
+        // The 144 HOLD check and explicit identity checks precede all tutoring.
+        val quizResponse = handleQuiz(prompt, previous)
+        if (quizResponse != null) return quizResponse
 
         // Both accented and unaccented Vietnamese input use the same fixed phrase.
         if (Regex("""\bxin\s+chao\b""").containsMatchIn(prompt)) {
@@ -93,7 +108,7 @@ object OfflineReplies {
         if (requestedTopic != null) {
             return when (requestedTopic) {
                 Topic.VIETNAMESE -> Reply(
-                    "Vietnamese topic selected. 'Xin chào' means hello. Say 'tell me more' for the next preset phrase.",
+                    "Vietnamese topic selected. 'Xin chào' means hello. Say 'tell me more' for the next phrase, or 'practice Vietnamese' for a four-question written quiz.",
                     Topic.VIETNAMESE,
                     lessonIndex = 1
                 )
@@ -162,6 +177,79 @@ object OfflineReplies {
 
         // An unrelated question clears topic context; do not invent follow-up meaning.
         return Reply(fallback, Topic.NONE)
+    }
+
+    /**
+     * Text-only quiz: compare preset answers after accent/case normalization.
+     * Never claim to have assessed Vietnamese tone marks or pronunciation.
+     */
+    private fun handleQuiz(prompt: String, previous: Reply): Reply? {
+        if (prompt == "practice vietnamese" || prompt == "quiz me" ||
+            prompt == "vietnamese quiz" || prompt == "test my vietnamese"
+        ) return quizQuestion(0)
+
+        val index = previous.quizIndex
+        if (index !in quizPhrases.indices) return null
+
+        if (prompt == "stop quiz" || prompt == "stop practice" || prompt == "stop lesson") {
+            return Reply("Written Vietnamese quiz stopped. Say 'practice Vietnamese' to restart.", Topic.VIETNAMESE)
+        }
+
+        // Clear the quiz on explicit topic switches, never grade an unrelated topic request.
+        if (prompt == "story" || prompt == "math" || prompt == "maths" ||
+            prompt == "vietnamese" || prompt == "tell me a story" ||
+            prompt == "tell a short story" || prompt.startsWith("switch to ")
+        ) return null
+
+        val phrase = quizPhrases[index]
+        if (prompt == "hint") return previous.copy(
+            message = "Hint for '" + phrase.english + "': " + phrase.hint + ". Type the Vietnamese phrase or 'skip'."
+        )
+        if (prompt == "repeat" || prompt == "repeat question") return previous.copy(
+            message = quizQuestionText(index)
+        )
+        if (prompt == "skip") return nextQuizQuestion(
+            index,
+            "Skipped. Standard Vietnamese: '" + phrase.vietnamese + "'."
+        )
+
+        val answer = prompt.trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
+        val expected = normalize(phrase.vietnamese).trimEnd { it == '?' || it == '!' || it == '.' || it == ' ' }
+        if (answer == expected) return nextQuizQuestion(
+            index,
+            "Written words matched. Standard spelling: '" + phrase.vietnamese +
+                "'. Tone marks and pronunciation were not assessed."
+        )
+
+        val correction = if (previous.quizMistakes == 0) {
+            "Not yet. For '" + phrase.english + "', " + phrase.hint +
+                ". Try again, say 'hint', or 'skip'."
+        } else {
+            "Still not a match. The preset answer is '" + phrase.vietnamese +
+                "'. Type it or 'skip'."
+        }
+        return previous.copy(message = correction, quizMistakes = previous.quizMistakes + 1)
+    }
+
+    private fun quizQuestion(index: Int): Reply =
+        Reply(quizQuestionText(index), Topic.VIETNAMESE, quizIndex = index)
+
+    private fun quizQuestionText(index: Int): String =
+        "Vietnamese written quiz " + (index + 1) + "/" + quizPhrases.size +
+            ": Type the Vietnamese for '" + quizPhrases[index].english +
+            "'. Say 'hint', 'skip', or 'stop quiz'."
+
+    private fun nextQuizQuestion(index: Int, feedback: String): Reply {
+        val nextIndex = index + 1
+        return if (nextIndex >= quizPhrases.size) Reply(
+            feedback + " Quiz complete: four fixed text prompts. This is not a pronunciation test. " +
+                "Say 'practice Vietnamese' to restart.",
+            Topic.VIETNAMESE
+        ) else Reply(
+            feedback + " " + quizQuestionText(nextIndex),
+            Topic.VIETNAMESE,
+            quizIndex = nextIndex
+        )
     }
 
     private fun nextVietnamese(index: Int): Reply = when (index) {

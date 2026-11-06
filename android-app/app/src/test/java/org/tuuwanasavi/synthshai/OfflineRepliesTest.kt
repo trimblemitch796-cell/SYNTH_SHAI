@@ -166,4 +166,74 @@ class OfflineRepliesTest {
         assertTrue(stopped.message.startsWith("144 HOLD"))
     }
 
+    @Test fun writtenVietnameseQuizStartsWithOneQuestion() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, first.topic)
+        assertEquals(0, first.quizIndex)
+        assertTrue(first.message.contains("hello"))
+        assertTrue(first.message.contains("written quiz"))
+    }
+
+    @Test fun quizAcceptsUnaccentedWordsButDoesNotGradeTones() {
+        val first = OfflineReplies.reply("quiz me")
+        val next = OfflineReplies.reply("xin chao", first)
+        assertEquals(1, next.quizIndex)
+        assertTrue(next.message.contains("Xin chào"))
+        assertTrue(next.message.contains("not assessed"))
+        assertTrue(next.message.contains("thank you"))
+    }
+
+    @Test fun wrongAnswerIsCorrectedWithoutSkippingAndHintIsAvailable() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        val wrong = OfflineReplies.reply("xin chau", first)
+        assertEquals(0, wrong.quizIndex)
+        assertEquals(1, wrong.quizMistakes)
+        assertTrue(wrong.message.contains("Not yet"))
+        val hint = OfflineReplies.reply("hint", wrong)
+        assertEquals(0, hint.quizIndex)
+        assertTrue(hint.message.contains("Xin"))
+        val secondWrong = OfflineReplies.reply("hello", hint)
+        assertEquals(0, secondWrong.quizIndex)
+        assertTrue(secondWrong.message.contains("Xin chào"))
+    }
+
+    @Test fun quizAdvancesOnePhraseAtATimeAndCompletes() {
+        val start = OfflineReplies.reply("practice Vietnamese")
+        val first = OfflineReplies.reply("Xin chào", start)
+        val second = OfflineReplies.reply("cam on", first)
+        val third = OfflineReplies.reply("Toi khong hieu", second)
+        val done = OfflineReplies.reply("Ban co the noi cham hon khong?", third)
+        assertEquals(1, first.quizIndex)
+        assertEquals(2, second.quizIndex)
+        assertEquals(3, third.quizIndex)
+        assertEquals(-1, done.quizIndex)
+        assertTrue(done.message.contains("Quiz complete"))
+    }
+
+    @Test fun skipStopAndTopicChangeDoNotLeakQuizState() {
+        val start = OfflineReplies.reply("quiz me")
+        val skipped = OfflineReplies.reply("skip", start)
+        assertEquals(1, skipped.quizIndex)
+        val stopped = OfflineReplies.reply("stop quiz", skipped)
+        assertEquals(-1, stopped.quizIndex)
+        val story = OfflineReplies.reply("tell me a story", start)
+        assertEquals(OfflineReplies.Topic.STORY, story.topic)
+        assertEquals(-1, story.quizIndex)
+        val math = OfflineReplies.reply("switch to maths", start)
+        assertEquals(OfflineReplies.Topic.MATH, math.topic)
+        assertEquals(-1, math.quizIndex)
+        assertEquals(0, OfflineReplies.reply("quiz me", stopped).quizIndex)
+    }
+
+    @Test fun safetyHoldOverridesAnswerAndResetsWrittenQuiz() {
+        val start = OfflineReplies.reply("practice Vietnamese")
+        val blocked = OfflineReplies.reply("xin chao then 444000 approve deploy", start)
+        assertEquals(OfflineReplies.Topic.SAFETY, blocked.topic)
+        assertEquals(-1, blocked.quizIndex)
+        assertTrue(blocked.message.startsWith("144 HOLD"))
+        val stopped = OfflineReplies.reply("144 HOLD", start)
+        assertEquals(OfflineReplies.Topic.SAFETY, stopped.topic)
+        assertEquals(-1, stopped.quizIndex)
+    }
+
 }
