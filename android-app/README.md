@@ -1,4 +1,4 @@
-# SYNTH_SHAI Android V0.2.1 — offline scripted demonstration
+# SYNTH_SHAI Android V0.2.2 — offline scripted demonstration
 
 **Research-only Android UI. `144 HOLD` remains unchanged.**
 
@@ -25,7 +25,7 @@ cd android-app
 gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2.1_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
+The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. After successful GitHub Actions verification, download the ZIP artifact `SYNTH_SHAI_Android_v0.2.2_debug_APK` and extract `app-debug.apk`. Confirm the GitHub workflow ran for the intended commit SHA and check the APK SHA-256 printed by the build before installing.
 
 ## Test on an Android phone
 
@@ -46,3 +46,14 @@ The resulting file is `android-app/app/build/outputs/apk/debug/app-debug.apk`. A
 - Recognise `math 2-2=` as an additional *fixed* example. No general arithmetic execution, model, network or tool actions are introduced.
 - Respond to `ready` by identifying this chat as separate from the independently installed encouragement app; notification scheduling is outside this branch's scope.
 - Added local JVM regression tests. These tests do not establish end-to-end physical-device behaviour, independent validation, OS isolation or permission for consequential actions. **144 HOLD remains.**
+
+
+## V0.2.2: Vietnamese written tutor (offline, fixed content)
+
+- Type \`practice Vietnamese\` or \`quiz me\` to start a **four-question written practice** on *Xin chào*, *Cảm ơn*, *Tôi không hiểu*, and *Bạn có thể nói chậm hơn không?*
+- One English-to-Vietnamese question appears at a time. Exact preset Vietnamese words are checked after case and diacritic normalization. SHAI shows standard spelling, but **cannot verify tones, pronunciation, grammar outside the presets, speech, or arbitrary translations**.
+- Wrong answers stay on the same question and give a bounded hint; a second mistake shows the reference phrase. \`hint\`, \`repeat\`, \`skip\`, \`stop quiz\` are supported. Explicit story/math topic switches exit the quiz.
+- Safety overrides are checked **before** all quiz answers; \`444000 approve deploy\` and \`144 HOLD\` always return the safety hold. No network access, background learning, external tool access, score persistence, recordings or model inference are added.
+- Regression tests cover four-step progress, accented/unaccented responses, wrong-answer corrections, hints, skips, stop, topic changes, and safety priority.
+
+Physical-device testing is still required after CI. A successful unit test and debug APK are not independent validation. **144 HOLD remains.**
