@@ -9,6 +9,8 @@ on:
   pull_request:
     paths:
       - 'plugins/shai_mcp_v01/**'
+      - 'shai_dual_track_v01.py'
+      - 'test_shai_dual_track_v01.py'
       - '.github/workflows/shai-mcp-readonly-v01.yml'
   workflow_dispatch:
 
