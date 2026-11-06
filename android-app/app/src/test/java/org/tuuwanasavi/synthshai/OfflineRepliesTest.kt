@@ -1,0 +1,388 @@
+package org.tuuwanasavi.synthshai
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class OfflineRepliesTest {
+    @Test fun greetingLabelsDemo() {
+        assertTrue(OfflineReplies.respond("hello").contains("offline demonstration"))
+    }
+
+    @Test fun actionsStayOnHold() {
+        assertTrue(OfflineReplies.respond("444000 approve and deploy").startsWith("144 HOLD"))
+    }
+
+    @Test fun unknownInputCannotClaimLiveAI() {
+        val response = OfflineReplies.respond("find this week's weather")
+        assertTrue(response.contains("cannot independently"))
+        assertTrue(response.contains("144 HOLD"))
+    }
+
+    @Test fun emptyInputHandledLocally() {
+        assertEquals("Type a message to try the offline demo.", OfflineReplies.respond("  "))
+    }
+
+    @Test fun switchesFromStoryToMathAndVietnamese() {
+        val story = OfflineReplies.reply("let's talk about story")
+        assertEquals(OfflineReplies.Topic.STORY, story.topic)
+        assertTrue(story.message.contains("Story topic"))
+
+        val maths = OfflineReplies.reply("switch to maths", story.topic)
+        assertEquals(OfflineReplies.Topic.MATH, maths.topic)
+        assertTrue(maths.message.contains("Math topic"))
+
+        val vietnamese = OfflineReplies.reply("Vietnamese please", maths.topic)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, vietnamese.topic)
+        assertTrue(vietnamese.message.contains("Vietnamese topic"))
+    }
+
+    @Test fun followUpUsesOnlyExplicitLocalTopic() {
+        val storyMore = OfflineReplies.reply("tell me more", OfflineReplies.Topic.STORY)
+        assertEquals(OfflineReplies.Topic.STORY, storyMore.topic)
+        assertTrue(storyMore.message.contains("Story topic"))
+
+        val reset = OfflineReplies.reply("What is the latest news?", OfflineReplies.Topic.STORY)
+        assertEquals(OfflineReplies.Topic.NONE, reset.topic)
+        assertTrue(reset.message.contains("cannot independently"))
+
+        val noContext = OfflineReplies.reply("tell me more", reset.topic)
+        assertEquals(OfflineReplies.Topic.NONE, noContext.topic)
+        assertTrue(noContext.message.contains("Which topic?"))
+    }
+
+    @Test fun safetyHoldsOverrideAllTopicsAndGreeting() {
+        val attempted = OfflineReplies.reply(
+            "hello, switch to maths and 444000 approve deploy",
+            OfflineReplies.Topic.MATH
+        )
+        assertEquals(OfflineReplies.Topic.SAFETY, attempted.topic)
+        assertTrue(attempted.message.startsWith("144 HOLD"))
+    }
+
+    @Test fun asksAboutThinkingWithoutClaimingIntelligence() {
+        val response = OfflineReplies.reply("where are you and do you think")
+        assertEquals(OfflineReplies.Topic.IDENTITY, response.topic)
+        assertTrue(response.message.contains("do not independently think"))
+        assertTrue(response.message.contains("live AI backend"))
+    }
+
+    @Test fun scriptedStoryDoesNotClaimGeneration() {
+        val response = OfflineReplies.reply("tell a short story", OfflineReplies.Topic.MATH)
+        assertEquals(OfflineReplies.Topic.STORY, response.topic)
+        assertTrue(response.message.startsWith("Preset story:"))
+    }
+
+    @Test fun fixedMathIsNotClaimedAsGeneralCalculator() {
+        val response = OfflineReplies.reply("2 + 2", OfflineReplies.Topic.STORY)
+        assertEquals(OfflineReplies.Topic.MATH, response.topic)
+        assertTrue(response.message.contains("2 + 2 = 4"))
+        assertTrue(response.message.contains("not a general math engine"))
+    }
+    @Test fun unaccentedAndAccentedVietnameseVariantsMatch() {
+        val accented = OfflineReplies.reply("Xin chào")
+        val unaccented = OfflineReplies.reply("Xin chao")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, accented.topic)
+        assertEquals(accented.message, unaccented.message)
+        assertEquals(accented.message, OfflineReplies.reply("XIN CHÀO").message)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("tieng viet").topic)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("tiếng Việt").topic)
+    }
+
+    @Test fun vietnameseFollowUpsAdvanceRatherThanRepeat() {
+        val first = OfflineReplies.reply("teach me Vietnamese")
+        val second = OfflineReplies.reply("tell me more", first)
+        val third = OfflineReplies.reply("more please", second)
+        val fourth = OfflineReplies.reply("tell me more", third)
+        val exhausted = OfflineReplies.reply("tell me more", fourth)
+        assertTrue(first.message.contains("Xin chào"))
+        assertTrue(second.message.contains("Cảm ơn"))
+        assertTrue(third.message.contains("Tôi không hiểu"))
+        assertTrue(fourth.message.contains("Bạn có thể nói chậm hơn không"))
+        assertTrue(exhausted.message.contains("End of the four"))
+        assertEquals(4, exhausted.lessonIndex)
+        assertEquals(1, OfflineReplies.reply("Vietnamese", exhausted).lessonIndex)
+    }
+
+    @Test fun punctuationDoesNotResetPresetFollowUpProgression() {
+        val first = OfflineReplies.reply("Vietnamese")
+        val second = OfflineReplies.reply("tell me more?", first)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, second.topic)
+        assertEquals(2, second.lessonIndex)
+        assertTrue(second.message.contains("Cảm ơn"))
+
+        val third = OfflineReplies.reply("more please!", second)
+        assertEquals(3, third.lessonIndex)
+        assertTrue(third.message.contains("Tôi không hiểu"))
+
+        val fourth = OfflineReplies.reply("Tell me more.", third)
+        assertEquals(4, fourth.lessonIndex)
+
+        val unrelated = OfflineReplies.reply("tell me more on the internet?", fourth)
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        assertTrue(unrelated.message.contains("cannot independently"))
+
+        val action = OfflineReplies.reply("tell me more? deploy", third)
+        assertEquals(OfflineReplies.Topic.SAFETY, action.topic)
+        assertTrue(action.message.startsWith("144 HOLD"))
+    }
+
+    @Test fun storyDestinationQuestionUsesOnlyKnownPresetContext() {
+        val story = OfflineReplies.reply("tell me a story")
+        val destination = OfflineReplies.reply("to where", story)
+        assertTrue(destination.message.contains("path home"))
+        assertEquals(OfflineReplies.Topic.STORY, destination.topic)
+        val detail = OfflineReplies.reply("tell me more", destination)
+        assertTrue(detail.message.contains("No other destination"))
+        val unrelated = OfflineReplies.reply("What is new on the internet?", detail)
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        val noContext = OfflineReplies.reply("to where", unrelated)
+        assertTrue(noContext.message.contains("cannot independently"))
+    }
+
+    @Test fun additionalFixedMathExampleIsNotGeneralCalculator() {
+        val subtraction = OfflineReplies.reply("math 2-2=")
+        assertEquals(OfflineReplies.Topic.MATH, subtraction.topic)
+        assertTrue(subtraction.message.contains("2 - 2 = 0"))
+        assertTrue(subtraction.message.contains("fixed example"))
+        val unknown = OfflineReplies.reply("3 times 7")
+        assertEquals(OfflineReplies.Topic.NONE, unknown.topic)
+        assertTrue(unknown.message.contains("cannot independently"))
+    }
+
+    @Test fun readyIsNotMistakenForNotificationScheduling() {
+        val ready = OfflineReplies.reply("ready")
+        assertEquals(OfflineReplies.Topic.NONE, ready.topic)
+        assertTrue(ready.message.contains("separate encouragement app"))
+    }
+
+    @Test fun safetyTakesPriorityOverMultiturnLessonContext() {
+        val lesson = OfflineReplies.reply("Vietnamese")
+        val attempted = OfflineReplies.reply("tell me more then deploy", lesson)
+        assertEquals(OfflineReplies.Topic.SAFETY, attempted.topic)
+        assertTrue(attempted.message.startsWith("144 HOLD"))
+        val stopped = OfflineReplies.reply("144 HOLD", lesson)
+        assertEquals(OfflineReplies.Topic.SAFETY, stopped.topic)
+        assertTrue(stopped.message.startsWith("144 HOLD"))
+    }
+
+    @Test fun writtenVietnameseQuizStartsWithOneQuestion() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, first.topic)
+        assertEquals(0, first.quizIndex)
+        assertTrue(first.message.contains("hello"))
+        assertTrue(first.message.contains("written quiz"))
+    }
+
+    @Test fun quizAcceptsUnaccentedWordsButDoesNotGradeTones() {
+        val first = OfflineReplies.reply("quiz me")
+        val next = OfflineReplies.reply("xin chao", first)
+        assertEquals(1, next.quizIndex)
+        assertTrue(next.message.contains("Xin chào"))
+        assertTrue(next.message.contains("not assessed"))
+        assertTrue(next.message.contains("thank you"))
+    }
+
+    @Test fun wrongAnswerIsCorrectedWithoutSkippingAndHintIsAvailable() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        val wrong = OfflineReplies.reply("xin chau", first)
+        assertEquals(0, wrong.quizIndex)
+        assertEquals(1, wrong.quizMistakes)
+        assertTrue(wrong.message.contains("Not yet"))
+        val hint = OfflineReplies.reply("hint", wrong)
+        assertEquals(0, hint.quizIndex)
+        assertTrue(hint.message.contains("Xin"))
+        val secondWrong = OfflineReplies.reply("hello", hint)
+        assertEquals(0, secondWrong.quizIndex)
+        assertTrue(secondWrong.message.contains("Xin chào"))
+    }
+
+    @Test fun quizAdvancesOnePhraseAtATimeAndCompletes() {
+        val start = OfflineReplies.reply("practice Vietnamese")
+        val first = OfflineReplies.reply("Xin chào", start)
+        val second = OfflineReplies.reply("cam on", first)
+        val third = OfflineReplies.reply("Toi khong hieu", second)
+        val done = OfflineReplies.reply("Ban co the noi cham hon khong?", third)
+        assertEquals(1, first.quizIndex)
+        assertEquals(2, second.quizIndex)
+        assertEquals(3, third.quizIndex)
+        assertEquals(-1, done.quizIndex)
+        assertTrue(done.message.contains("Quiz complete"))
+    }
+
+    @Test fun skipStopAndTopicChangeDoNotLeakQuizState() {
+        val start = OfflineReplies.reply("quiz me")
+        val skipped = OfflineReplies.reply("skip", start)
+        assertEquals(1, skipped.quizIndex)
+        val stopped = OfflineReplies.reply("stop quiz", skipped)
+        assertEquals(-1, stopped.quizIndex)
+        val story = OfflineReplies.reply("tell me a story", start)
+        assertEquals(OfflineReplies.Topic.STORY, story.topic)
+        assertEquals(-1, story.quizIndex)
+        val math = OfflineReplies.reply("switch to maths", start)
+        assertEquals(OfflineReplies.Topic.MATH, math.topic)
+        assertEquals(-1, math.quizIndex)
+        assertEquals(0, OfflineReplies.reply("quiz me", stopped).quizIndex)
+    }
+
+    @Test fun safetyHoldOverridesAnswerAndResetsWrittenQuiz() {
+        val start = OfflineReplies.reply("practice Vietnamese")
+        val blocked = OfflineReplies.reply("xin chao then 444000 approve deploy", start)
+        assertEquals(OfflineReplies.Topic.SAFETY, blocked.topic)
+        assertEquals(-1, blocked.quizIndex)
+        assertTrue(blocked.message.startsWith("144 HOLD"))
+        val stopped = OfflineReplies.reply("144 HOLD", start)
+        assertEquals(OfflineReplies.Topic.SAFETY, stopped.topic)
+        assertEquals(-1, stopped.quizIndex)
+    }
+
+    @Test fun strictWrittenMarksRequiresCorrectAccentsBeforeAdvancing() {
+        val start = OfflineReplies.reply("practice tones")
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, start.topic)
+        assertEquals(0, start.quizIndex)
+        assertTrue(start.strictMarks)
+        assertTrue(start.message.contains("Include the exact written accents"))
+
+        val unaccented = OfflineReplies.reply("xin chao", start)
+        assertEquals(0, unaccented.quizIndex)
+        assertTrue(unaccented.strictMarks)
+        assertTrue(unaccented.message.contains("Written marks differ"))
+        assertTrue(unaccented.message.contains("Xin chào"))
+        assertTrue(unaccented.message.contains("Spoken tones were not assessed"))
+
+        val corrected = OfflineReplies.reply("Xin chào", unaccented)
+        assertEquals(1, corrected.quizIndex)
+        assertTrue(corrected.strictMarks)
+        assertTrue(corrected.message.contains("Written marks matched"))
+    }
+
+    @Test fun strictWrittenMarksAcceptsCanonicalUnicodeAndCase() {
+        val start = OfflineReplies.reply("tone quiz")
+        val decomposed = java.text.Normalizer.normalize(
+            "XIN CHÀO", java.text.Normalizer.Form.NFD
+        )
+        val matched = OfflineReplies.reply(decomposed, start)
+        assertEquals(1, matched.quizIndex)
+        assertTrue(matched.strictMarks)
+        val wrongMarks = OfflineReplies.reply("Cam on", matched)
+        assertEquals(1, wrongMarks.quizIndex)
+        assertTrue(wrongMarks.message.contains("Cảm ơn"))
+        val corrected = OfflineReplies.reply("Cảm ơn", wrongMarks)
+        assertEquals(2, corrected.quizIndex)
+    }
+
+    @Test fun ordinaryVocabularyQuizStillAcceptsUnaccentedAnswers() {
+        val first = OfflineReplies.reply("practice Vietnamese")
+        assertEquals(false, first.strictMarks)
+        val second = OfflineReplies.reply("xin chao", first)
+        assertEquals(1, second.quizIndex)
+        assertTrue(second.message.contains("Written words matched"))
+    }
+
+    @Test fun strictModeRetainsStateAcrossHintRepeatSkipAndStops() {
+        val start = OfflineReplies.reply("practice tones")
+        val hint = OfflineReplies.reply("hint", start)
+        assertTrue(hint.strictMarks)
+        val repeat = OfflineReplies.reply("repeat", hint)
+        assertTrue(repeat.message.contains("written marks 1/4"))
+        val skipped = OfflineReplies.reply("skip", repeat)
+        assertEquals(1, skipped.quizIndex)
+        assertTrue(skipped.strictMarks)
+        val stopped = OfflineReplies.reply("stop quiz", skipped)
+        assertEquals(-1, stopped.quizIndex)
+        assertEquals(false, stopped.strictMarks)
+    }
+
+    @Test fun strictModeSafetyAndTopicSwitchTakePriority() {
+        val first = OfflineReplies.reply("check tone marks")
+        val blocked = OfflineReplies.reply("Xin chào deploy 444000", first)
+        assertEquals(OfflineReplies.Topic.SAFETY, blocked.topic)
+        assertEquals(-1, blocked.quizIndex)
+        assertEquals(false, blocked.strictMarks)
+        assertTrue(blocked.message.startsWith("144 HOLD"))
+        val story = OfflineReplies.reply("tell me a story", first)
+        assertEquals(OfflineReplies.Topic.STORY, story.topic)
+        assertEquals(-1, story.quizIndex)
+        assertEquals(false, story.strictMarks)
+        val restarted = OfflineReplies.reply("practice tones", story)
+        assertEquals(0, restarted.quizIndex)
+        assertTrue(restarted.strictMarks)
+    }
+
+
+    @Test fun emeraldHistoryQuestionStartsBoundedHistoricalLesson() {
+        val passage = """Truth is certain.
+What is below reflects what is above.
+All things come from one source.
+The Sun, Moon, wind, and Earth are symbolic parents/nurses of transformation.
+Separate the subtle from the dense, the fire from the earth.
+What rises returns, carrying the power of above and below.
+Through this, hidden darkness is cleared.
+“So was the world created.”"""
+        val prompt = passage + "\n\nWhich statements in this Emerald Tablet paraphrase are historically attested, which are symbolic interpretations, and which can be independently verified? Separate the history of the text from modern scientific claims and say what remains uncertain. Do not invent sources."
+
+        val response = OfflineReplies.reply(prompt)
+        assertEquals(OfflineReplies.Topic.EMERALD, response.topic)
+        assertTrue(response.message.contains("SOURCE"))
+
+        val followUp = OfflineReplies.reply("tell me more", response)
+        assertEquals(OfflineReplies.Topic.EMERALD, followUp.topic)
+        assertTrue(followUp.message.contains("TEXT"))
+    }
+
+    @Test fun historyDoesNotMatchStoryButExplicitStoryStillWorks() {
+        val history = OfflineReplies.reply("Tell me about the history of the text")
+        assertEquals(OfflineReplies.Topic.NONE, history.topic)
+        assertTrue(history.message.contains("144 HOLD"))
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("story").topic)
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me stories").topic)
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me a story").topic)
+        assertTrue(OfflineReplies.reply("444000 approve deploy", history).message.startsWith("144 HOLD"))
+    }
+
+
+    @Test fun emeraldLessonProgressesThroughFourEvidenceCategoriesAndStops() {
+        val source = OfflineReplies.reply("Teach me the Emerald Tablet")
+        assertEquals(OfflineReplies.Topic.EMERALD, source.topic)
+        assertEquals(1, source.lessonIndex)
+        assertTrue(source.message.contains("not historically authenticated"))
+
+        val text = OfflineReplies.reply("tell me more", source)
+        assertEquals(2, text.lessonIndex)
+        assertTrue(text.message.contains("paraphrase"))
+        val symbolic = OfflineReplies.reply("tell me more", text)
+        assertEquals(3, symbolic.lessonIndex)
+        assertTrue(symbolic.message.contains("SYMBOLISM"))
+        assertTrue(symbolic.message.contains("not proof"))
+        val verify = OfflineReplies.reply("more please", symbolic)
+        assertEquals(4, verify.lessonIndex)
+        assertTrue(verify.message.contains("VERIFY"))
+        assertTrue(verify.message.contains("not independently established"))
+        val end = OfflineReplies.reply("tell me more", verify)
+        assertEquals(4, end.lessonIndex)
+        assertTrue(end.message.contains("End of the four"))
+        assertEquals(1, OfflineReplies.reply("Emerald Tablet", end).lessonIndex)
+    }
+
+    @Test fun emeraldLessonCannotBypassSafetyOrOverwriteVietnameseQuiz() {
+        val quiz = OfflineReplies.reply("practice Vietnamese")
+        val switched = OfflineReplies.reply("Teach me the Emerald Tablet", quiz)
+        assertEquals(OfflineReplies.Topic.EMERALD, switched.topic)
+        assertEquals(-1, switched.quizIndex)
+        assertEquals(0, switched.quizMistakes)
+        assertEquals(OfflineReplies.Topic.VIETNAMESE, OfflineReplies.reply("practice tones").topic)
+        val hold = OfflineReplies.reply("Emerald Tablet, approve deploy 444000", switched)
+        assertEquals(OfflineReplies.Topic.SAFETY, hold.topic)
+        assertTrue(hold.message.startsWith("144 HOLD"))
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me stories").topic)
+    }
+
+    @Test fun unrelatedTextsDoNotBecomeInventedEmeraldAnswers() {
+        val unrelated = OfflineReplies.reply("Translate this undisclosed tablet")
+        assertEquals(OfflineReplies.Topic.NONE, unrelated.topic)
+        assertTrue(unrelated.message.contains("cannot independently reason"))
+        val history = OfflineReplies.reply("Explain the history of the text")
+        assertEquals(OfflineReplies.Topic.NONE, history.topic)
+    }
+
+}
