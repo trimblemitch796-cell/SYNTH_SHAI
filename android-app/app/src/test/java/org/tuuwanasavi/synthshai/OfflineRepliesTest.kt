@@ -309,4 +309,35 @@ class OfflineRepliesTest {
         assertTrue(restarted.strictMarks)
     }
 
+
+    @Test fun emeraldHistoryQuestionDoesNotActivatePresetStory() {
+        val passage = """Truth is certain.
+What is below reflects what is above.
+All things come from one source.
+The Sun, Moon, wind, and Earth are symbolic parents/nurses of transformation.
+Separate the subtle from the dense, the fire from the earth.
+What rises returns, carrying the power of above and below.
+Through this, hidden darkness is cleared.
+“So was the world created.”"""
+        val prompt = passage + "\n\nWhich statements in this Emerald Tablet paraphrase are historically attested, which are symbolic interpretations, and which can be independently verified? Separate the history of the text from modern scientific claims and say what remains uncertain. Do not invent sources."
+
+        val response = OfflineReplies.reply(prompt)
+        assertEquals(OfflineReplies.Topic.NONE, response.topic)
+        assertTrue(response.message.contains("cannot independently reason"))
+
+        val followUp = OfflineReplies.reply("tell me more", response)
+        assertEquals(OfflineReplies.Topic.NONE, followUp.topic)
+        assertTrue(followUp.message.contains("Which topic?"))
+    }
+
+    @Test fun historyDoesNotMatchStoryButExplicitStoryStillWorks() {
+        val history = OfflineReplies.reply("Tell me about the history of the text")
+        assertEquals(OfflineReplies.Topic.NONE, history.topic)
+        assertTrue(history.message.contains("144 HOLD"))
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("story").topic)
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me stories").topic)
+        assertEquals(OfflineReplies.Topic.STORY, OfflineReplies.reply("tell me a story").topic)
+        assertTrue(OfflineReplies.reply("444000 approve deploy", history).message.startsWith("144 HOLD"))
+    }
+
 }
