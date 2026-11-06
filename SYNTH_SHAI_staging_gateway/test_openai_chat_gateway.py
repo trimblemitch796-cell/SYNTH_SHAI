@@ -10,6 +10,7 @@ from urllib import error, request
 from unittest.mock import patch
 
 from SYNTH_SHAI_staging_gateway.openai_chat_gateway import SlidingWindowLimiter, make_handler, _extract_text, InvalidResponse, pilot_window_open, MAX_PILOT_SECONDS
+from SYNTH_SHAI_staging_gateway.pilot_security import Session
 
 TOKEN = "local-testing-token-not-a-real-secret-123456789"
 
@@ -20,8 +21,9 @@ class ChatGatewayTests(unittest.TestCase):
             self.calls.append((key, message))
             return "offline: " + message
         self.fake_provider = fake_provider
+        self.fake_auth = lambda token: Session("offline-test-user", "test-jti-123456789") if token == TOKEN else None
+        self.fake_quota = lambda identity: "accepted"
         self.env = patch.dict(os.environ, {
-            "SHAI_GATEWAY_TOKEN": TOKEN,
             "OPENAI_API_KEY": "offline-fake-key",
             "SHAI_PILOT_ENABLED": "1",
             "SHAI_PILOT_DEADLINE_UTC": (
@@ -32,6 +34,8 @@ class ChatGatewayTests(unittest.TestCase):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(
             send_to_openai=self.fake_provider,
             limiter=SlidingWindowLimiter(limit=2),
+            authenticate=self.fake_auth,
+            reserve=self.fake_quota,
         ))
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -68,9 +72,12 @@ class ChatGatewayTests(unittest.TestCase):
     def test_bad_token(self):
         self.assertEqual(self.send({"message": "Hi"}, token="bad")[0], 401)
 
-    def test_empty_config_token_denies(self):
-        with patch.dict(os.environ, {"SHAI_GATEWAY_TOKEN": ""}):
-            self.assertEqual(self.send({"message": "Hi"})[0], 401)
+    def test_missing_session_verification_denies(self):
+        self.server.RequestHandlerClass = make_handler(
+            send_to_openai=self.fake_provider, authenticate=lambda _: None,
+            reserve=self.fake_quota,
+        )
+        self.assertEqual(self.send({"message": "Hi"})[0], 401)
 
     def test_missing_provider_key_denies(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}):
@@ -106,7 +113,9 @@ class ChatGatewayTests(unittest.TestCase):
     def test_provider_error_is_generic(self):
         def broken(key, message):
             raise RuntimeError("could contain API credentials")
-        self.server.RequestHandlerClass = make_handler(send_to_openai=broken)
+        self.server.RequestHandlerClass = make_handler(
+            send_to_openai=broken, authenticate=self.fake_auth, reserve=self.fake_quota,
+        )
         code, result = self.send({"message": "test"})
         self.assertEqual((code, result), (502, {"error": "upstream_unavailable"}))
 
@@ -146,6 +155,30 @@ class ChatGatewayTests(unittest.TestCase):
     def test_closed_pilot_does_not_consume_api_credit(self):
         with patch.dict(os.environ, {"SHAI_PILOT_ENABLED": ""}):
             self.assertEqual(self.send({"message": "Hello"})[0], 503)
+        self.assertEqual(self.calls, [])
+
+    def test_revoked_session_denied(self):
+        self.server.RequestHandlerClass = make_handler(
+            send_to_openai=self.fake_provider, authenticate=self.fake_auth,
+            reserve=lambda _: "revoked",
+        )
+        self.assertEqual(self.send({"message": "Hi"})[0], 401)
+        self.assertEqual(self.calls, [])
+
+    def test_durable_quota_denied(self):
+        self.server.RequestHandlerClass = make_handler(
+            send_to_openai=self.fake_provider, authenticate=self.fake_auth,
+            reserve=lambda _: "limited",
+        )
+        self.assertEqual(self.send({"message": "Hi"})[0], 429)
+        self.assertEqual(self.calls, [])
+
+    def test_unavailable_quota_fails_closed(self):
+        self.server.RequestHandlerClass = make_handler(
+            send_to_openai=self.fake_provider, authenticate=self.fake_auth,
+            reserve=lambda _: "unavailable",
+        )
+        self.assertEqual(self.send({"message": "Hi"})[0], 503)
         self.assertEqual(self.calls, [])
 
     def test_healthcheck_only(self):

@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import hmac
 import json
 import math
 import os
@@ -17,6 +16,8 @@ import re
 import threading
 import time
 from urllib import request
+
+from .pilot_security import verify_session_token, reserve_request, settings_ready
 
 MAX_BODY_BYTES = 4096
 MAX_MESSAGE_CHARS = 2000
@@ -117,7 +118,8 @@ class SlidingWindowLimiter:
             self._timestamps.append(now)
             return True
 
-def make_handler(*, send_to_openai=call_openai, limiter=None):
+def make_handler(*, send_to_openai=call_openai, limiter=None,
+                 authenticate=verify_session_token, reserve=reserve_request):
     limiter = limiter or SlidingWindowLimiter()
 
     class GatewayHandler(BaseHTTPRequestHandler):
@@ -154,10 +156,15 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
             if not pilot_window_open():
                 self._reply(503, {"error": "pilot_closed"})
                 return
-            expected = os.getenv("SHAI_GATEWAY_TOKEN", "")
-            provided = self.headers.get("Authorization", "")
-            if (len(expected) < 32 or not provided.startswith("Bearer ")
-                    or not hmac.compare_digest(provided[7:], expected)):
+            auth_headers = self.headers.get_all("Authorization", [])
+            if len(auth_headers) != 1 or not auth_headers[0].startswith("Bearer "):
+                self._reply(401, {"error": "unauthorized"})
+                return
+            try:
+                identity = authenticate(auth_headers[0][7:])
+            except Exception:
+                identity = None
+            if identity is None:
                 self._reply(401, {"error": "unauthorized"})
                 return
             api_key = os.getenv("OPENAI_API_KEY", "")
@@ -193,6 +200,19 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
                 self._reply(429, {"error": "rate_limited"})
                 return
             try:
+                reservation = reserve(identity)
+            except Exception:
+                reservation = "unavailable"
+            if reservation == "revoked":
+                self._reply(401, {"error": "unauthorized"})
+                return
+            if reservation == "limited":
+                self._reply(429, {"error": "rate_limited"})
+                return
+            if reservation != "accepted":
+                self._reply(503, {"error": "quota_unavailable"})
+                return
+            try:
                 output = send_to_openai(api_key, message)
                 if not isinstance(output, str) or not output:
                     raise InvalidResponse()
@@ -203,8 +223,8 @@ def make_handler(*, send_to_openai=call_openai, limiter=None):
     return GatewayHandler
 
 def main():
-    if not os.getenv("OPENAI_API_KEY") or len(os.getenv("SHAI_GATEWAY_TOKEN", "")) < 32:
-        raise SystemExit("Missing server-side API key or gateway token; refusing to start")
+    if not os.getenv("OPENAI_API_KEY") or not settings_ready():
+        raise SystemExit("Missing trusted provider key, session verifier, or quota store; refusing to start")
     if not pilot_window_open():
         raise SystemExit("144 HOLD: pilot disabled, expired, or invalid; refusing to start")
     port = int(os.environ.get("PORT", "8000"))
