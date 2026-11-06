@@ -4,8 +4,8 @@ on:
     branches: [review/android-v01-offline-app]
     paths: [.github/workflows/android-v02-linux-install.yml]
 permissions:
-  actions: read
   contents: read
+  actions: read
 jobs:
   install:
     runs-on: ubuntu-latest

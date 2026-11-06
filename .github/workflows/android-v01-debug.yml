@@ -1,4 +1,4 @@
-name: Android V0.2 Offline Debug APK
+name: Android V0.2.1 Offline Debug APK
 
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: SYNTH_SHAI_Android_v0.2_debug_APK
+          name: SYNTH_SHAI_Android_v0.2.1_debug_APK
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
