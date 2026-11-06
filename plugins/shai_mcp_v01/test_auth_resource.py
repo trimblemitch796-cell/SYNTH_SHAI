@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import httpx
 
+from mcp import Client
 from auth_resource import IntrospectionVerifier, ResourceSettings, _SCOPE
 from authenticated_server import build_authenticated_server, from_environment
 
@@ -67,8 +68,11 @@ class SettingsTests(unittest.TestCase):
                              settings().introspection, "id", "")
 
     def test_no_unapproved_tools_exposed(self):
-        mcp = build_authenticated_server(settings())
-        self.assertEqual(set(mcp._tool_manager._tools), {"shai_status", "shai_evidence_triage"})
+        async def inspect():
+            async with Client(build_authenticated_server(settings())) as client:
+                result = await client.list_tools()
+                return {tool.name for tool in result.tools}
+        self.assertEqual(asyncio.run(inspect()), {"shai_status", "shai_evidence_triage"})
 
 
 class IntrospectionTests(unittest.IsolatedAsyncioTestCase):
