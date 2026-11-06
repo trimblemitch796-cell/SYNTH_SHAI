@@ -66,8 +66,28 @@ def send(message):
     # Android input text encodes ASCII spaces as %s; all submitted test text is ASCII.
     if not re.fullmatch(r"[A-Za-z0-9 ]+", message):
         raise AssertionError("Test input must be bounded ASCII words and digits")
-    adb("shell", "input", "text", message.replace(" ", "%s"))
-    time.sleep(0.2)
+    # The emulator can occasionally transpose fast adb-injected characters
+    # (e.g. "hint" -> "hnit"). Check the actual editable value before Send.
+    for attempt in range(2):
+        adb("shell", "input", "text", message.replace(" ", "%s"))
+        time.sleep(0.5)
+        current_fields = [
+            n for n in hierarchy()
+            if n.attrib.get("class") == "android.widget.EditText"
+        ]
+        current = current_fields[-1].attrib.get("text", "") if current_fields else ""
+        if current == message:
+            break
+        if attempt == 1:
+            raise AssertionError(
+                "Emulator did not type requested text accurately; "
+                + "expected=" + repr(message) + ", actual=" + repr(current)
+            )
+        # Clear the corrupted input; do not send an unintended chat message.
+        adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+        if current:
+            adb("shell", "input", "keyevent", *["KEYCODE_DEL"] * len(current))
+        time.sleep(0.3)
     # Dismiss soft keyboard so Send remains visible and tappable.
     adb("shell", "input", "keyevent", "4")
     time.sleep(0.5)
