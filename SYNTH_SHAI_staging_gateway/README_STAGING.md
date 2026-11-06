@@ -1,6 +1,6 @@
 # SYNTH_SHAI — isolated staging chat gateway (review only)
 
-**144 HOLD. No deployment or merge authorised.** This is a narrow proof-of-concept, not a production system, public service, or Android-ready authentication design.
+**144 HOLD. Code-only merge authorised 7 November 2026; deployment NOT authorised.** This is a narrow proof-of-concept, not a production system, public service, or Android-ready authentication design.
 
 ## Boundaries
 
@@ -26,7 +26,7 @@ The gateway, session, quota and sunset tests use fake providers and fake Render 
 
 ## Project status
 
-The staging gateway is only a research candidate for review in SYNTH_SHAI. Keep 144 HOLD for consequential operations. Do not merge to main or create a Render service based only on these tests.
+The gateway is offline research code only. Incorporating these files into the repository is not approval to operate a public service, configure a Render service, connect Android login, invoke the Render sunset helper, or consume OpenAI API credits. Keep 144 HOLD for consequential operations; independent security review and explicit human deployment approval are still required.
 
 ## Trusted operator setup — NOT a deployment recipe
 
