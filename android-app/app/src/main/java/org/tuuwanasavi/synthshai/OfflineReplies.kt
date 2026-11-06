@@ -103,7 +103,7 @@ object OfflineReplies {
         val requestedTopic = when {
             prompt.contains("vietnamese") || prompt.contains("tieng viet") -> Topic.VIETNAMESE
             Regex("""\bmaths?\b""").containsMatchIn(prompt) -> Topic.MATH
-            prompt.contains("story") || prompt.contains("stories") -> Topic.STORY
+            Regex("""\b(?:story|stories)\b""").containsMatchIn(prompt) -> Topic.STORY
             else -> null
         }
         if (requestedTopic != null) {
