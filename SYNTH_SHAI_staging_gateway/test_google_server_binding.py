@@ -16,6 +16,8 @@ from SYNTH_SHAI_staging_gateway.google_server_binding import (
     revoke_preauth_cookie,
 )
 from SYNTH_SHAI_staging_gateway.google_oidc_preflight import VerifiedGoogleSubject
+from SYNTH_SHAI_staging_gateway.google_jwks_rotation import GoogleJwksCache, GOOGLE_JWKS_URI
+from SYNTH_SHAI_staging_gateway.google_server_binding import finish_bound_google_login_with_cached_google_keys
 
 ORIGIN = "https://login.example.invalid"
 CLIENT = "1234567890-test.apps.googleusercontent.com"
@@ -187,6 +189,49 @@ class GoogleServerBindingTests(unittest.TestCase):
         self.assertIsNone(start_bound_google_login(
             self.path, "Bearer " + c.cookie_value, request_origin=ORIGIN,
             configured_origin=ORIGIN, now=self.now))
+
+    def key_cache(self, key=None, kid="synthetic", ttl=120, now=1):
+        key = self.key if key is None else key
+        pub = key.public_key().public_numbers()
+        n = pub.n.to_bytes(256, "big")
+        jwk = {"kty": "RSA", "alg": "RS256", "use": "sig",
+               "kid": kid, "e": "AQAB", "n": b64(n)}
+        cache = GoogleJwksCache()
+        cache.install_trusted_response(
+            json.dumps({"keys": [jwk]}).encode(),
+            "public, max-age=" + str(ttl), GOOGLE_JWKS_URI, now=now)
+        return cache
+
+    def cached_finish(self, c, challenge, cache, *, cache_now):
+        return finish_bound_google_login_with_cached_google_keys(
+            self.path, self.header(c), request_origin=ORIGIN,
+            configured_origin=ORIGIN, transaction_id=challenge.transaction_id,
+            nonce=challenge.nonce, raw_google_token=self.token(challenge.nonce),
+            client_id=CLIENT, google_key_cache=cache, now=self.now,
+            cache_now=cache_now)
+
+    def test_cached_key_and_server_cookie_combined_accept_one_time(self):
+        c = self.cookie()
+        tx = self.start(c)
+        cache = self.key_cache()
+        self.assertEqual(self.cached_finish(c, tx, cache, cache_now=2),
+                         VerifiedGoogleSubject("109876543210123456789"))
+        self.assertIsNone(self.cached_finish(c, tx, cache, cache_now=2))
+
+    def test_rotated_key_rejects_prior_token_and_consumes_session(self):
+        c = self.cookie()
+        tx = self.start(c)
+        rotated_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        cache = self.key_cache(rotated_key, kid="new-rotated")
+        self.assertIsNone(self.cached_finish(c, tx, cache, cache_now=2))
+        self.assertIsNone(self.cached_finish(c, tx, self.key_cache(), cache_now=2))
+
+    def test_stale_google_key_cache_denies_and_burns_cookie(self):
+        c = self.cookie()
+        tx = self.start(c)
+        cache = self.key_cache(ttl=1, now=2)
+        self.assertIsNone(self.cached_finish(c, tx, cache, cache_now=3))
+        self.assertIsNone(self.cached_finish(c, tx, self.key_cache(), cache_now=2))
 
 
 if __name__ == "__main__":

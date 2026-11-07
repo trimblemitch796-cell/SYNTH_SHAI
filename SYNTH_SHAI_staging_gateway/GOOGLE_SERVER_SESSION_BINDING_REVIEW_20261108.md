@@ -24,6 +24,10 @@ The existing **Google login one-use challenge** and **Google ID-token synthetic 
 python -m unittest -v SYNTH_SHAI_staging_gateway.test_google_server_binding
 python -m unittest discover -v
 
-16 tests cover secure cookie attributes, first-use authorization, forced logout, expiry, wrong Origin/duplicate cookies, cross-session challenge theft, forged cookie rejection, concurrent starts/callbacks, malformed callback token, and fail-closed missing state. These project-maintained tests require independent review.
+19 tests cover secure cookie attributes, first-use authorization, forced logout, expiry, wrong Origin/duplicate cookies, cross-session challenge theft, forged cookie rejection, concurrent starts/callbacks, malformed callback token, and fail-closed missing state. These project-maintained tests require independent review.
 
 **Code-only draft, not approved to merge or deploy. 144 HOLD remains active.**
+
+## Final offline composition
+
+The dedicated `finish_bound_google_login_with_cached_google_keys` adapter accepts only a `GoogleJwksCache` instance (never client-provided key maps), checks its monotonic freshness, and then uses the server-owned one-use cookie/challenge. If keys are missing or expired, the login is rejected **and the server session is still burned**. Tests confirm successful one-use verification, rotation denying a previously valid key, and stale keys failing closed. This is offline composition only; provider/HTTPS/deployment review remains outstanding.

@@ -203,3 +203,32 @@ def revoke_preauth_cookie(path, cookie_header):
         return True
     except (sqlite3.Error, OSError, ValueError, TypeError):
         return False
+
+
+
+def finish_bound_google_login_with_cached_google_keys(
+    path, cookie_header, *, request_origin, configured_origin,
+    transaction_id, nonce, raw_google_token, client_id,
+    google_key_cache, authorized_party=None, now=None, cache_now=None
+):
+    """Compose trusted server-owned binding with fresh pinned Google keys.
+
+    A missing/stale/bad cache denies the callback and BURNS the preauth cookie.
+    Do not accept a public-key dictionary from HTTP callers or JWT headers.
+    No real issuer, Android session exchange, or external tools are exposed.
+    """
+    from .google_jwks_rotation import GoogleJwksCache, JwksRejected
+
+    keys = {}
+    if isinstance(google_key_cache, GoogleJwksCache):
+        try:
+            keys = google_key_cache.snapshot(now=cache_now)
+        except JwksRejected:
+            keys = {}
+    return finish_bound_google_login(
+        path, cookie_header, request_origin=request_origin,
+        configured_origin=configured_origin,
+        transaction_id=transaction_id, nonce=nonce,
+        raw_google_token=raw_google_token, client_id=client_id,
+        trusted_public_keys=keys, authorized_party=authorized_party, now=now
+    )
