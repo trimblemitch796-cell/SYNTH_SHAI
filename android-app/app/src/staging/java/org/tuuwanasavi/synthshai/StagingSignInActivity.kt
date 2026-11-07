@@ -30,7 +30,7 @@ class StagingSignInActivity : ComponentActivity() {
         setContent {
             val origin = getString(R.string.signin_origin)
             val client = getString(R.string.signin_client)
-            val ready = client.endsWith(".apps.googleusercontent.com") && validOrigin(origin)
+            val ready = stagingReady(origin, client)
             val scope = rememberCoroutineScope()
             var busy by remember { mutableStateOf(false) }
             var message by remember { mutableStateOf("") }
@@ -102,10 +102,15 @@ internal class LogoutUnconfirmed : Exception()
 private val OPAQUE = Regex("[A-Za-z0-9_-]{43}")
 private val JWT = Regex("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+")
 
+internal fun stagingReady(origin: String, client: String): Boolean =
+    client.matches(Regex("[0-9]+-[A-Za-z0-9_-]+\\.apps\\.googleusercontent\\.com")) &&
+        validOrigin(origin)
+
 private fun validOrigin(value: String): Boolean = runCatching {
     val uri = URI(value)
     uri.scheme == "https" && uri.host != null && uri.userInfo == null &&
-        uri.query == null && uri.fragment == null && uri.rawPath.isEmpty()
+        uri.query == null && uri.fragment == null && uri.rawPath.isEmpty() &&
+        (uri.port == -1 || uri.port == 443)
 }.getOrDefault(false)
 
 private suspend fun post(origin: String, path: String, body: JSONObject, expected: Int,
