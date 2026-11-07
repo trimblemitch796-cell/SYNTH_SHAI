@@ -17,6 +17,14 @@ android {
     }
 
     buildTypes {
+        create("staging") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-signin"
+            matchingFallbacks += "debug"
+            resValue("string", "signin_origin", providers.gradleProperty("shaiSigninOrigin").orElse("").get())
+            resValue("string", "signin_client", providers.gradleProperty("shaiGoogleWebClientId").orElse("355882138973-d0c984tl8mfeq9rf0bea4lrk252pon2v.apps.googleusercontent.com").get())
+        }
         getByName("release") {
             isMinifyEnabled = false
         }
@@ -40,5 +48,10 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.9.3")
+    "stagingImplementation"("androidx.credentials:credentials:1.3.0")
+    "stagingImplementation"("androidx.credentials:credentials-play-services-auth:1.3.0")
+    "stagingImplementation"("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    "testStagingImplementation"("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
 }
+
