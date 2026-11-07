@@ -62,34 +62,43 @@ class StagingSignInActivity : ComponentActivity() {
     }
 
     private suspend fun checkSignIn(origin: String, client: String) {
-        val challenge = post(origin, "/auth/challenge",
-            JSONObject().put("flow", "google-id-token-v1").put("platform", "android"), 201)
-        val nonce = challenge.getString("nonce")
-        val id = challenge.getString("challenge_id")
-        val completion = challenge.getString("completion_token")
-        require(listOf(nonce, id, completion).all { OPAQUE.matches(it) })
-        val option = GetSignInWithGoogleOption.Builder(client).setNonce(nonce).build()
-        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-        val credential = CredentialManager.create(this).getCredential(this, request).credential
-        require(credential is CustomCredential &&
-            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
-        val token = GoogleIdTokenCredential.createFrom(credential.data).idToken
-        val session = post(origin, "/auth/google", JSONObject().put("challenge_id", id)
-            .put("completion_token", completion).put("google_id_token", token), 200)
-        require(session.getString("token_type") == "Bearer")
-        val bearer = session.getString("access_token")
-        require(bearer.length <= 4096 && JWT.matches(bearer))
-        try {
-            post(origin, "/auth/logout", JSONObject(), 204, bearer)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw LogoutUnconfirmed()
+        runSignInCheck({ path, body, expected, bearer -> post(origin, path, body, expected, bearer) }) { nonce ->
+            val option = GetSignInWithGoogleOption.Builder(client).setNonce(nonce).build()
+            val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+            val credential = CredentialManager.create(this@StagingSignInActivity).getCredential(this@StagingSignInActivity, request).credential
+            require(credential is CustomCredential &&
+                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL)
+            GoogleIdTokenCredential.createFrom(credential.data).idToken
         }
     }
 }
 
-private class LogoutUnconfirmed : Exception()
+internal suspend fun runSignInCheck(
+    send: suspend (String, JSONObject, Int, String?) -> JSONObject,
+    choose: suspend (String) -> String
+) {
+    val challenge = send("/auth/challenge",
+        JSONObject().put("flow", "google-id-token-v1").put("platform", "android"), 201, null)
+    val nonce = challenge.getString("nonce")
+    val id = challenge.getString("challenge_id")
+    val completion = challenge.getString("completion_token")
+    require(listOf(nonce, id, completion).all { OPAQUE.matches(it) })
+    val token = choose(nonce)
+    val session = send("/auth/google", JSONObject().put("challenge_id", id)
+        .put("completion_token", completion).put("google_id_token", token), 200, null)
+    require(session.getString("token_type") == "Bearer")
+    val bearer = session.getString("access_token")
+    require(bearer.length <= 4096 && JWT.matches(bearer))
+    try {
+        send("/auth/logout", JSONObject(), 204, bearer)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        throw LogoutUnconfirmed()
+    }
+}
+
+internal class LogoutUnconfirmed : Exception()
 private val OPAQUE = Regex("[A-Za-z0-9_-]{43}")
 private val JWT = Regex("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+")
 
