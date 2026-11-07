@@ -50,6 +50,15 @@ jobs:
         working-directory: android-app
         run: gradle --no-daemon --stacktrace :app:testStagingUnitTest :app:assembleStaging
 
+      - name: Verify staging package and report public signing certificate
+        run: |
+          set -eu
+          apk=android-app/app/build/outputs/apk/staging/app-staging.apk
+          actual="$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")"
+          echo "Staging APK package: $actual"
+          test "$actual" = "org.tuuwanasavi.synthshai.staging"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk"
+          echo "Certificate digests are public identifiers; ephemeral CI debug keys must not be treated as stable signing credentials."
       - name: Calculate APK SHA-256
         run: sha256sum android-app/app/build/outputs/apk/staging/app-staging.apk
 
