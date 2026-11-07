@@ -23,7 +23,7 @@ android {
             versionNameSuffix = "-signin"
             matchingFallbacks += "debug"
             resValue("string", "signin_origin", providers.gradleProperty("shaiSigninOrigin").orElse("").get())
-            resValue("string", "signin_client", providers.gradleProperty("shaiGoogleWebClientId").orElse("").get())
+            resValue("string", "signin_client", providers.gradleProperty("shaiGoogleWebClientId").orElse("355882138973-d0c984tl8mfeq9rf0bea4lrk252pon2v.apps.googleusercontent.com").get())
         }
         getByName("release") {
             isMinifyEnabled = false
