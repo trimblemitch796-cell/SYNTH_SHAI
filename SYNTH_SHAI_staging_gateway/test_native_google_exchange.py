@@ -82,3 +82,44 @@ class NativeExchangeTests(unittest.TestCase):
         for change, status in [({"wsgi.url_scheme": "http"}, 400), ({"HTTP_HOST": "other"}, 400),
                                ({"REMOTE_ADDR": "other"}, 429), ({"CONTENT_LENGTH": "18000"}, 400)]:
             self.assertEqual(self.request("challenge", {}, **change)[0], status)
+
+
+    def test_cloud_run_forwarded_https_header_does_not_override_http_wsgi_scheme(self):
+        # Cloud Run terminates TLS upstream of the container. A caller-controlled
+        # X-Forwarded-Proto value alone must never promote this request to HTTPS.
+        status, response = self.request(
+            "challenge", {"flow": "google-id-token-v1", "platform": "android"},
+            **{"wsgi.url_scheme": "http", "HTTP_X_FORWARDED_PROTO": "https"}
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(response, {})
+
+    def test_cloud_run_untrusted_host_still_denied_with_forwarded_https(self):
+        status, response = self.request(
+            "challenge", {"flow": "google-id-token-v1", "platform": "android"},
+            **{"HTTP_HOST": "attacker.invalid", "HTTP_X_FORWARDED_PROTO": "https"}
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(response, {})
+
+    def test_no_trusted_jwks_fails_closed_and_burns_challenge(self):
+        body = self.completion()
+        self.app.cache = GoogleJwksCache()  # no keys; must not fetch during request
+        self.assertEqual(self.request("google", body)[0], 401)
+        self.assertEqual(self.request("google", body)[0], 401)
+
+    def test_unavailable_challenge_store_fails_closed(self):
+        self.app.store = "/this-path-is-not-provisioned/shai-staging.sqlite"
+        status, response = self.request(
+            "challenge", {"flow": "google-id-token-v1", "platform": "android"}
+        )
+        self.assertEqual(status, 503)
+        self.assertEqual(response, {})
+
+    def test_unavailable_limiter_fails_closed(self):
+        with patch.object(self.app, "limiter", side_effect=RuntimeError("limiter offline")):
+            status, response = self.request(
+                "challenge", {"flow": "google-id-token-v1", "platform": "android"}
+            )
+        self.assertEqual(status, 503)
+        self.assertEqual(response, {})
