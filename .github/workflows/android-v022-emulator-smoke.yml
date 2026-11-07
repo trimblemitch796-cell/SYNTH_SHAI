@@ -100,3 +100,26 @@ jobs:
             emulator.log
           if-no-files-found: warn
           retention-days: 7
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.11"
+
+      - name: Exercise Android to loopback staging gateway
+        run: |
+          python3 -m venv "$RUNNER_TEMP/gateway-lab"
+          "$RUNNER_TEMP/gateway-lab/bin/pip" install --require-hashes -r requirements-lock.txt
+          (cd android-app && gradle --no-daemon :gateway-check:assembleDebug)
+          apk=android-app/gateway-check/build/outputs/apk/debug/gateway-check-debug.apk
+          adb install "$apk"
+          "$RUNNER_TEMP/gateway-lab/bin/python" android-app/tools/gateway_check_smoke.py
+          (cd "$(dirname "$apk")" && sha256sum gateway-check-debug.apk > SHA256SUMS)
+
+      - name: Upload emulator-checked gateway client
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: SHAI-Android-Gateway-Check-0.3.1
+          path: |
+            android-app/gateway-check/build/outputs/apk/debug/gateway-check-debug.apk
+            android-app/gateway-check/build/outputs/apk/debug/SHA256SUMS
+          if-no-files-found: error
