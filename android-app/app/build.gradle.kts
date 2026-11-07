@@ -51,6 +51,7 @@ dependencies {
     "stagingImplementation"("androidx.credentials:credentials:1.3.0")
     "stagingImplementation"("androidx.credentials:credentials-play-services-auth:1.3.0")
     "stagingImplementation"("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    "testStagingImplementation"("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
 }
 
