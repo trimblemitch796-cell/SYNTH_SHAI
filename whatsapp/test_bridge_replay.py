@@ -4,6 +4,7 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 from whatsapp import bridge
+from whatsapp._testutil import isolate_review_queue
 from whatsapp.bridge import SeenIds, new_messages, verify_token_ok
 
 
@@ -54,6 +55,7 @@ class HttpReplayTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {'SHAI_META_APP_SECRET': 's3cret', 'SHAI_VERIFY_TOKEN': 'tok'})
         self.env.start(); self.addCleanup(self.env.stop)
         seen = patch.object(bridge, 'SEEN', SeenIds()); seen.start(); self.addCleanup(seen.stop)
+        isolate_review_queue(self)
         self.srv = ThreadingHTTPServer(('127.0.0.1', 0), bridge.Handler)
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
         self.addCleanup(self.srv.server_close); self.addCleanup(self.srv.shutdown)
