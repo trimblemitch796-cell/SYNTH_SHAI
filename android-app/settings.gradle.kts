@@ -15,3 +15,5 @@ dependencyResolutionManagement {
 rootProject.name = "SYNTH_SHAI_Android_Offline"
 include(":app")
 include(":linux-cli")
+include(":trial-preview")
+include(":gateway-check")
