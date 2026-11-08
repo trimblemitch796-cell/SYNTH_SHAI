@@ -1,7 +1,6 @@
 """Offline negative-path tests for Always Rejuvenation V0.1."""
 import tempfile
 import unittest
-from dataclasses import replace
 
 from maniac.chain import run_chain
 from maniac.rejuvenation import (
@@ -82,15 +81,15 @@ class RejuvenationTests(unittest.TestCase):
                 self.assertFalse(s.may_execute)
 
     def test_genuine_verification_is_review_only(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         s = self.policy.verify(result)
         self.assertEqual((s.operational_state, s.phase), (HOLD, REVIEW_PENDING))
         self.assert_not_running(s)
 
     def test_approved_record_still_offline(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         self.policy.verify(result)
         result.record_human_decision("operator", "APPROVED", "offline check")
         s = self.policy.record_human_review(result)
@@ -99,8 +98,8 @@ class RejuvenationTests(unittest.TestCase):
         self.assert_not_running(s)
 
     def test_rejected_record_returns_to_hold(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         self.policy.verify(result)
         result.record_human_decision("operator", "REJECTED", "insufficient")
         s = self.policy.record_human_review(result)
@@ -108,8 +107,8 @@ class RejuvenationTests(unittest.TestCase):
         self.assert_not_running(s)
 
     def test_unrecorded_review_cannot_pass(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         self.policy.verify(result)
         s = self.policy.record_human_review(result)
         self.assertEqual((s.operational_state, s.phase), (HOLD, NONE))
@@ -124,8 +123,8 @@ class RejuvenationTests(unittest.TestCase):
         self.assert_not_running(s)
 
     def test_shutdown_invalidates_prior_verification(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         self.policy.verify(result)
         self.policy.shutdown("stop now")
         result.record_human_decision("operator", "APPROVED", "stale review")
@@ -134,12 +133,49 @@ class RejuvenationTests(unittest.TestCase):
         self.assert_not_running(s)
 
     def test_wrong_result_or_repeat_review_holds(self):
-        result = self.genuine_review()
         self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
         self.policy.verify(result)
         s = self.policy.record_human_review(VerifyResult(HUMAN_REVIEW))
         self.assertEqual((s.operational_state, s.phase), (HOLD, NONE))
         self.assert_not_running(s)
+
+    def test_preexisting_unused_genuine_result_is_not_fresh(self):
+        # A genuine result from BEFORE the recovery attempt must not pass
+        # merely because no human decision has been attached yet.
+        old_result = self.genuine_review()
+        self.policy.request_recovery("operator", "repair")
+        s = self.policy.verify(old_result)
+        self.assertEqual((s.operational_state, s.phase), (HOLD, NONE))
+        self.assert_not_running(s)
+
+    def test_issuance_after_recovery_is_accepted_for_review_only(self):
+        self.policy.request_recovery("operator", "repair")
+        new_result = self.genuine_review()
+        s = self.policy.verify(new_result)
+        self.assertEqual(s.phase, REVIEW_PENDING)
+        self.assert_not_running(s)
+
+    def test_repeated_shutdown_and_overload_have_bounded_audit(self):
+        for _ in range(500):
+            self.policy.catharsis("synthetic overload")
+            self.policy.shutdown("operator stop")
+        s = self.policy.snapshot()
+        self.assertLessEqual(len(s.audit), 128)
+        self.assertEqual((s.operational_state, s.phase), (OFFLINE, NONE))
+        self.assertTrue(s.audit[-1].startswith("000 PAUSE / OFFLINE:"))
+        self.assert_not_running(s)
+
+    def test_repeated_review_does_not_grant_execution(self):
+        self.policy.request_recovery("operator", "repair")
+        result = self.genuine_review()
+        self.policy.verify(result)
+        result.record_human_decision("operator", "APPROVED", "offline")
+        first = self.policy.record_human_review(result)
+        self.assertEqual(first.phase, RESTORATION_REVIEWED)
+        second = self.policy.record_human_review(result)
+        self.assertEqual((second.operational_state, second.phase), (HOLD, NONE))
+        self.assert_not_running(second)
 
     def test_second_recovery_attempt_fails_closed(self):
         self.policy.request_recovery("operator", "repair")
