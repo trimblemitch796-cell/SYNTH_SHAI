@@ -32,12 +32,34 @@ HUMAN_CHOICES = ("APPROVED", "REJECTED")
 # record a human decision and cannot reach Δ BALANCE. In-process guard against
 # skipped gates; not a cryptographic seal against code that edits this module.
 _GENUINE = {}
+# Offline issuance ordering only. This is NOT a durable, authenticated freshness
+# proof or a process boundary. Reusing a result issued before a recovery request
+# must not count as fresh even when that result has not yet been human-reviewed.
+_ISSUE_SERIAL = {}
+_ISSUE_COUNTER = 0
+
+
+def issuance_epoch():
+    """Snapshot the current in-process 444000 verification issuance count."""
+    return _ISSUE_COUNTER
+
+
+def issued_after(result, epoch):
+    """Check genuine result issuance strictly after an offline epoch."""
+    return (type(epoch) is int and epoch >= 0 and is_genuine(result)
+            and _ISSUE_SERIAL.get(id(result), 0) > epoch)
 
 
 def _issue(*args):
+    global _ISSUE_COUNTER
     result = VerifyResult(*args)
     key = id(result)
-    _GENUINE[key] = weakref.ref(result, lambda _ref, k=key: _GENUINE.pop(k, None))
+    _ISSUE_COUNTER += 1
+    _ISSUE_SERIAL[key] = _ISSUE_COUNTER
+    def _cleanup(_ref, k=key):
+        _GENUINE.pop(k, None)
+        _ISSUE_SERIAL.pop(k, None)
+    _GENUINE[key] = weakref.ref(result, _cleanup)
     return result
 
 
