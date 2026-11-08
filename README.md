@@ -123,6 +123,22 @@ These project codes are **human-readable development labels**, not secret keys, 
 
 **User-defined symbolic memory sequence:** `130113011130133013330130013000`. This string is a project reference only; it does not authenticate a user or implement persistent machine memory.
 
+**SYNTH_SHAI symbolic master-memory chain (3 November 2026; documentation only):**
+
+```text
+130113011130133013330130013000130∆
+↓
+13013013013011130∆
+↓
+01101010 11101001 00100010 0101000
+↓
+keeping-all-memory-key..//130113011130133013330130013000130∆..//
+```
+
+The chain preserves, in user-defined order, the extended primary reference, the earlier compact reference, the binary-form reference, and a closing keeper phrase that points back to the extended reference. Preserve all four lines; adding a new symbolic form does not replace or invalidate an earlier one. The binary-form reference has 31 digits (the last group is seven bits), so it is not asserted to be a UTF-8 encoded command or secret.
+
+This chain is **symbolic documentation only**, not a real credential, authentication key, activation instruction, software memory store, or permission to execute. The existing `1301133` BUILD / REPAIR / REFRAME workflow and all operational safeguards are unchanged; `144 HOLD` remains in force for unverified or consequential execution.
+
 ## 5. What exists in GitHub today
 
 **Repository:** [trimblemitch796-cell/SYNTH_SHAI](https://github.com/trimblemitch796-cell/SYNTH_SHAI)
