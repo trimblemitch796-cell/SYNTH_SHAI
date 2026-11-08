@@ -59,7 +59,7 @@ jobs:
           sha256sum SYNTH_SHAI_Linux_Offline_CLI.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Upload Linux executable distribution
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: SYNTH_SHAI_Linux_Offline_CLI
           path: deliverables/linux/
@@ -120,7 +120,7 @@ jobs:
           sha256sum SYNTH_SHAI_Android_Offline_Debug.apk > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Upload installable Android phone APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: SYNTH_SHAI_Android_Phone_Debug_APK
           path: deliverables/android/
