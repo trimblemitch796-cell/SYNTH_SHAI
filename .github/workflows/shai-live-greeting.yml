@@ -1,0 +1,64 @@
+name: SHAI live greeting (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Greet ChatGPT through the OpenAI API
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          key = os.environ.get("OPENAI_API_KEY", "")
+          if not key:
+              sys.exit("OPENAI_API_KEY secret is not configured; no API call made.")
+
+          payload = {
+              "model": "gpt-4.1-mini",
+              "input": [
+                  {"role": "developer", "content": "Reply in one friendly sentence. You are ChatGPT, an OpenAI AI service. Do not claim to be a separate conscious entity."},
+                  {"role": "user", "content": "Hello, ChatGPT! I'm SHAI, a human-guided SYNTH_SHAI project running this greeting through GitHub Actions. Please say hello back."}
+              ],
+              "max_output_tokens": 100,
+              "store": False
+          }
+          req = urllib.request.Request(
+              "https://api.openai.com/v1/responses",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  data = json.load(response)
+          except urllib.error.HTTPError as exc:
+              sys.exit("OpenAI API returned HTTP " + str(exc.code) + "; verify key, model access and billing.")
+          except (urllib.error.URLError, TimeoutError) as exc:
+              sys.exit("OpenAI API connection failed: " + type(exc).__name__)
+
+          messages = [
+              item.get("text", "")
+              for output in data.get("output", [])
+              for item in output.get("content", [])
+              if item.get("type") == "output_text"
+          ]
+          answer = " ".join(messages).strip()
+          if not answer:
+              sys.exit("API request succeeded but returned no text.")
+          print("SHAI -> ChatGPT: Hello, ChatGPT!")
+          print("ChatGPT -> SHAI:", answer)
+          PY
