@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from maniac.verify import (
     HOLD, HUMAN_REVIEW, VerifyResult, decision_intact, is_genuine,
+    issuance_epoch, issued_after,
 )
 
 OFFLINE = "OFFLINE"
@@ -19,6 +20,7 @@ NONE = "NONE"
 RECOVERY_PENDING = "666000 RECOVERY PENDING"
 REVIEW_PENDING = "444000 HUMAN REVIEW PENDING"
 RESTORATION_REVIEWED = "RESTORATION_REVIEWED_OFFLINE"
+_AUDIT_LIMIT = 128
 
 
 def _valid_note(value):
@@ -53,6 +55,7 @@ class RejuvenationPolicy:
         self._state = HOLD
         self._phase = NONE
         self._verified = None
+        self._recovery_epoch = None
         self._audit = ["144 HOLD: initial state"]
 
     @property
@@ -63,6 +66,13 @@ class RejuvenationPolicy:
     def may_execute(self):
         return False
 
+    def _log(self, message):
+        # A diagnostic ring buffer, not a durable audit record. Bound memory
+        # under repeated shutdown and overload events.
+        self._audit.append(message)
+        if len(self._audit) > _AUDIT_LIMIT:
+            del self._audit[:len(self._audit) - _AUDIT_LIMIT]
+
     def snapshot(self):
         return PolicySnapshot(self._state, self._phase, tuple(self._audit))
 
@@ -70,14 +80,15 @@ class RejuvenationPolicy:
         self._state = HOLD
         self._phase = NONE
         self._verified = None
-        self._audit.append("144 HOLD: " + reason)
+        self._recovery_epoch = None
+        self._log("144 HOLD: " + reason)
         return self.snapshot()
 
     def catharsis(self, reason):
         """Contain overload and reset pending review; never restore."""
         if not _valid_note(reason):
             reason = "unverified overload reason"
-        self._audit.append("CATHARSIS: isolate/diagnose; not rejuvenation")
+        self._log("CATHARSIS: isolate/diagnose; not rejuvenation")
         return self._hold(reason.strip())
 
     def shutdown(self, reason=None):
@@ -86,7 +97,8 @@ class RejuvenationPolicy:
         self._state = OFFLINE
         self._phase = NONE
         self._verified = None
-        self._audit.append("000 PAUSE / OFFLINE: " + why)
+        self._recovery_epoch = None
+        self._log("000 PAUSE / OFFLINE: " + why)
         return self.snapshot()
 
     def request_recovery(self, operator_id, reason):
@@ -98,26 +110,28 @@ class RejuvenationPolicy:
         if self._state not in (OFFLINE, HOLD):
             return self._hold("unexpected operational state")
         self._verified = None
+        self._recovery_epoch = issuance_epoch()
         self._phase = RECOVERY_PENDING
-        self._audit.append("666000 RECOVERY: proposed by operator; verify afresh")
+        self._log("666000 RECOVERY: proposed by operator; verify afresh")
         return self.snapshot()
 
     def verify(self, result):
-        """Accept only a fresh, genuine review-ready existing MANIAC result.
+        """Accept only a genuine result issued AFTER this recovery request.
 
-        This is an in-process guard. A hostile process can forge Python memory.
+        In-process ordering is not cryptographic freshness, and a hostile
+        process can forge Python memory.
         Only the pre-existing MANIAC consequence_review() issues genuine results.
         """
         if self._phase != RECOVERY_PENDING:
             return self._hold("verification without a pending recovery")
-        if (type(result) is not VerifyResult or not is_genuine(result)
+        if (type(result) is not VerifyResult or not issued_after(result, self._recovery_epoch)
                 or not decision_intact(result)
                 or result.decision != HUMAN_REVIEW
                 or result.human_decision is not None):
-            return self._hold("888000 VERIFY: missing, failed, or pre-used evidence")
+            return self._hold("888000 VERIFY: missing, pre-recovery, failed, or pre-used result")
         self._verified = result
         self._phase = REVIEW_PENDING
-        self._audit.append("888000 VERIFY: simulated evidence ready for human review")
+        self._log("888000 VERIFY: simulated evidence ready for human review")
         return self.snapshot()
 
     def record_human_review(self, result):
@@ -128,7 +142,7 @@ class RejuvenationPolicy:
         """
         if self._phase != REVIEW_PENDING or result is not self._verified:
             return self._hold("444000: no matching verified review")
-        if not is_genuine(result) or not decision_intact(result):
+        if not issued_after(result, self._recovery_epoch) or not decision_intact(result):
             return self._hold("444000: tampered or unrecorded decision")
         decision = result.human_decision
         if decision is None or not decision.approved:
@@ -136,6 +150,7 @@ class RejuvenationPolicy:
         self._state = OFFLINE
         self._phase = RESTORATION_REVIEWED
         self._verified = None
-        self._audit.append("444000 HUMAN REVIEW: APPROVED in offline simulation")
-        self._audit.append("144 HOLD: no operational authority; OFFLINE retained")
+        self._recovery_epoch = None
+        self._log("444000 HUMAN REVIEW: APPROVED in offline simulation")
+        self._log("144 HOLD: no operational authority; OFFLINE retained")
         return self.snapshot()
