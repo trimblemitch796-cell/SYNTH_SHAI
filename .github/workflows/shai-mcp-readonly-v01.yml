@@ -1,0 +1,47 @@
+name: SYNTH_SHAI read-only MCP adapter tests
+
+on:
+  push:
+    branches: ['review/chatgpt-mcp-readonly-v01-20261106']
+    paths:
+      - 'plugins/shai_mcp_v01/**'
+      - '.github/workflows/shai-mcp-readonly-v01.yml'
+  pull_request:
+    paths:
+      - 'plugins/shai_mcp_v01/**'
+      - 'shai_dual_track_v01.py'
+      - 'test_shai_dual_track_v01.py'
+      - '.github/workflows/shai-mcp-readonly-v01.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-offline:
+    name: Read-only MCP research prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.13']
+    steps:
+      - name: Check out without retaining credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install isolated MCP SDK for test import
+        run: python -m pip install -r plugins/shai_mcp_v01/requirements.txt
+      - name: Verify source compiles
+        run: python -m compileall -q plugins/shai_mcp_v01
+      - name: Run pure safety tests and MCP adapter import tests
+        run: python -m unittest discover -s plugins/shai_mcp_v01 -p 'test_*.py' -v
+      - name: Record boundary (not approval)
+        run: |
+          echo 'SHAI MCP adapter: read-only research; no live connection or deployment.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'CI does not constitute independent security validation. 144 HOLD.' >> "$GITHUB_STEP_SUMMARY"
