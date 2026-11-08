@@ -31,7 +31,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Gradle 8.9
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           gradle-version: '8.9'
       - name: Compile Linux CLI from the shared Android offline reply engine and test
@@ -85,7 +85,7 @@ jobs:
           test -x "$sdkmanager"
           "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
       - name: Gradle 8.9
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
         with:
           gradle-version: '8.9'
       - name: Verify offline-only manifest and Java/Kotlin sources
