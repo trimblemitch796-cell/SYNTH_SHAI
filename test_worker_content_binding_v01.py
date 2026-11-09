@@ -102,6 +102,24 @@ class ContentBoundWorkerTests(unittest.TestCase):
         raw = percent_all(base64.b64encode(base64.b64encode(marker)))
         self.assert_hold(self.envelope(marker, raw=raw, encodings=("percent", "base64", "base64")))
 
+    def test_signed_zero_width_obfuscated_marker_holds(self):
+        marker = b"SYNTHETIC_CONFIDENTIAL_EXAMPLE"
+        hidden = b"SYNTHETIC_CONFIDENTIAL_\xe2\x80\x8bEXAMPLE"
+        self.assert_hold(self.envelope(hidden))
+        self.assert_hold(self.envelope(hidden, raw=base64.b64encode(hidden), encodings=("base64",)))
+
+    def test_signed_compatibility_glyph_marker_holds(self):
+        fullwidth = "ＳＹＮＴＨＥＴＩＣ＿ＣＯＮＦＩＤＥＮＴＩＡＬ＿ＥＸＡＭＰＬＥ".encode("utf-8")
+        self.assert_hold(self.envelope(fullwidth))
+
+    def test_control_character_holds_even_with_valid_signature(self):
+        self.assert_hold(self.envelope(b"hello\x00world"))
+        self.assert_hold(self.envelope("hello\u202eworld".encode("utf-8")))
+
+    def test_safe_multiline_text_still_simulates(self):
+        payload = b"safe first line\nsecond line\twith tab"
+        self.assertEqual(self.run_worker(self.envelope(payload))["decision"], SIMULATED)
+
     def test_content_mismatch_rejected_in_worker(self):
         msg = self.envelope()
         msg["content"]["raw_b64"] = base64.b64encode(b"tampered").decode("ascii")
