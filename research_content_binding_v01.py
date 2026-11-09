@@ -11,6 +11,7 @@ import binascii
 import hashlib
 import hmac
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import unquote_to_bytes
 
@@ -75,6 +76,20 @@ def _looks_like_another_layer(data: bytes) -> bool:
         return False
 
 
+def _policy_view(payload: bytes) -> bytes:
+    """Conservative policy scan only; never change signed canonical bytes.
+
+    Reject non-rendered formatting/controls (except ordinary multiline text),
+    then NFKC-fold compatibility glyphs for synthetic marker comparison.
+    This does not establish complete Unicode confusable or DLP coverage.
+    """
+    text = payload.decode("utf-8", errors="strict")
+    if any(unicodedata.category(char) in ("Cc", "Cf", "Cs")
+           and char not in "\n\r\t" for char in text):
+        raise NormalizeHold("invisible_or_control_character")
+    return unicodedata.normalize("NFKC", text).upper().encode("utf-8")
+
+
 def normalize_explicit_text(raw_payload: bytes, encodings: tuple[str, ...]) -> CanonicalText:
     """Decode only an explicitly declared outer-to-inner chain; no guess-and-allow.
 
@@ -107,6 +122,7 @@ def normalize_explicit_text(raw_payload: bytes, encodings: tuple[str, ...]) -> C
     # as harmless plaintext. This may conservatively reject ambiguous literals.
     if _looks_like_another_layer(text):
         raise NormalizeHold("ambiguous_or_unresolved_layer")
+    _policy_view(text)  # Reject unrendered controls before any signature is consumed.
     return CanonicalText(text, hashlib.sha256(text).hexdigest())
 
 
@@ -124,7 +140,7 @@ def guarded_synthetic_review(request, approval, *, raw_payload, encodings,
         canonical = normalize_explicit_text(raw_payload, encodings)
         if not hmac.compare_digest(request["plan_sha256"], canonical.sha256):
             return HOLD
-        if SYNTHETIC_DENY_MARKER in canonical.payload.upper():
+        if SYNTHETIC_DENY_MARKER in _policy_view(canonical.payload):
             return HOLD
         return dispatch_simulation(
             request, approval, policy=policy,
