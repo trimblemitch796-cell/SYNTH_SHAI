@@ -1,4 +1,5 @@
 """V4.1 offline boundary regression checks; NOT sandbox validation or an audit."""
+import base64
 import hashlib
 import json
 import multiprocessing
@@ -70,7 +71,16 @@ class V41OfflineBoundaryTests(unittest.TestCase):
                 process.join(5)
 
     def valid_message(self):
-        return json.dumps({"request": self.request, "approval": self.approval}).encode()
+        # The V0.1 worker now requires an exact, content-bound envelope.
+        # The SHA-256 of decoded text must equal the signed plan_sha256.
+        return json.dumps({
+            "request": self.request,
+            "approval": self.approval,
+            "content": {
+                "raw_b64": base64.b64encode(b"synthetic-only").decode("ascii"),
+                "encodings": [],
+            },
+        }).encode()
 
     def test_resource_limit_initialization_failure_is_hold_without_input(self):
         response = self.exchange(target=_simulate_limit_failure)
@@ -81,7 +91,8 @@ class V41OfflineBoundaryTests(unittest.TestCase):
                          {"trusted_database_path": ":memory:"},
                          {"now": 0}):
             with self.subTest(injected=injected):
-                msg = {"request": self.request, "approval": self.approval, **injected}
+                msg = json.loads(self.valid_message())
+                msg.update(injected)
                 self.assertEqual(self.exchange(json.dumps(msg).encode())["decision"], HOLD)
         # Earlier rejections must not consume the valid one-use approval.
         self.assertEqual(self.exchange(self.valid_message())["decision"], SIMULATED)
