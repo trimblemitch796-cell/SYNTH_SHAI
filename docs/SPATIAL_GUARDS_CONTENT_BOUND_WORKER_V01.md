@@ -44,3 +44,18 @@ The 25-case `test_research_content_binding_v01.py` suite is available in the ass
 5. Comprehensive regression, CI checks, concurrency, performance measurements and independent adversarial security review remain separate requirements.
 
 **Approval contract:** a simulated success never authorizes real action. No worker, network capability, external integration or deployable service is being enabled. `144 HOLD` remains default for consequential use.
+
+
+## 10 November 2026 CI investigation
+
+PR #112 initial pull-request workflows (`verification`, `V3.1 CATHARSIS`,
+`release security`) returned an `Internal server error` annotation and
+did not expose actionable failing-test logs. The dependency-advisories job
+reported success. GitHub API attempts to retry those three runs returned
+`403 This workflow run cannot be retried`.
+
+This documentation-only commit requests a fresh push-triggered and PR-triggered
+CI evaluation of the existing experimental research implementation. No
+authorization scope changes; `144 HOLD` remains in force.
+
+Do not mark the PR green unless the new exact-revision checks complete.
