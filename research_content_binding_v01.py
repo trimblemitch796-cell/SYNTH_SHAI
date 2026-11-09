@@ -87,7 +87,13 @@ def _policy_view(payload: bytes) -> bytes:
     if any(unicodedata.category(char) in ("Cc", "Cf", "Cs")
            and char not in "\n\r\t" for char in text):
         raise NormalizeHold("invisible_or_control_character")
-    return unicodedata.normalize("NFKC", text).upper().encode("utf-8")
+    # Fold combining/variation marks *only* for the illustrative marker scan.
+    # Raw signed payload bytes and SHA-256 are preserved exactly. This can
+    # overmatch multilingual text and is NOT comprehensive DLP or confusables
+    # detection; deployment of actual content policies requires separate review.
+    folded = unicodedata.normalize("NFKD", unicodedata.normalize("NFKC", text))
+    folded = "".join(char for char in folded if unicodedata.category(char) not in ("Mn", "Me"))
+    return folded.upper().encode("utf-8")
 
 
 def normalize_explicit_text(raw_payload: bytes, encodings: tuple[str, ...]) -> CanonicalText:

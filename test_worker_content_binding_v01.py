@@ -190,5 +190,40 @@ class ContentBoundWorkerTests(unittest.TestCase):
         self.assertEqual(self.run_worker(msg)["decision"], SIMULATED)
 
 
+    def test_variation_selector_disguised_synthetic_marker_holds(self):
+        hidden = "SYNTHETIC_CONFI\uFE0FDENTIAL_EXAMPLE".encode("utf-8")
+        self.assert_hold(self.envelope(hidden))
+        self.assert_hold(self.envelope(hidden, raw=base64.b64encode(hidden),
+                                       encodings=("base64",)))
+
+    def test_combining_mark_disguised_synthetic_marker_holds(self):
+        hidden = "SYNTHETIC_CONFI\u0301DENTIAL_EXAMPLE".encode("utf-8")
+        self.assert_hold(self.envelope(hidden))
+
+    def test_multilingual_content_keeps_exact_signed_bytes(self):
+        # Marker-only policy folding must NOT mutate the canonical signed text.
+        for payload in ("Tôi không hiểu, cảm ơn bạn.",
+                        "To\u0302i kho\u0302ng hie\u0302\u0309u."):
+            with self.subTest(payload=payload):
+                msg = self.envelope(payload.encode("utf-8"))
+                self.assertEqual(self.run_worker(msg)["decision"], SIMULATED)
+
+    def test_signed_read_write_and_unknown_intents_fail_closed(self):
+        # These are not supported worker actions; no clinical or live action exists.
+        for action in ("READ", "WRITE", "UNKNOWN_CUSTOM_EXECUTE"):
+            with self.subTest(action=action):
+                self.assert_hold(self.envelope(action=action))
+
+    def test_reencoded_same_canonical_payload_cannot_replay(self):
+        msg = self.envelope()
+        self.assertEqual(self.run_worker(msg)["decision"], SIMULATED)
+        alternative = json.loads(json.dumps(msg))
+        alternative["content"] = {
+            "raw_b64": base64.b64encode(base64.b64encode(self.safe)).decode("ascii"),
+            "encodings": ["base64"],
+        }
+        self.assert_hold(alternative)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

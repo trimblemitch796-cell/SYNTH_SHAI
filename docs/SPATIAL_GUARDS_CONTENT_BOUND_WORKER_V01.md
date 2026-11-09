@@ -9,7 +9,7 @@
 
 - `research_content_binding_v01.py`: strictly bounded, explicitly declared nested Base64 / percent decoding (up to 3 layers), UTF-8 validation, SHA-256 digest of canonical decoded text and a **synthetic example** deny marker. Unknown, malformed, ambiguous or over-deep encodings HOLD. This is a prototype policy, not a DLP solution.
 - `offline_worker_v3.py`: requires an exact new JSON envelope `{request,approval,content}`. Content is `{raw_b64,encodings}`, with canonical Base64 as the transport encoding and encodings declared outermost to innermost. The worker validates content before handing off to existing signed, single-use synthetic dispatch.
-- `test_worker_content_binding_v01.py`: direct child-worker and V4.1 parent-path regression tests. Existing worker, resource-limit and parent-lifecycle fixtures are updated for the strict envelope.
+- `test_worker_content_binding_v01.py`: 29 direct child-worker and V4.1 parent-path test methods at this revision (24 from the verified baseline plus five new adversarial/contract tests). Four additional tests were added earlier to `test_v41_offline_boundary.py`. Existing worker, resource-limit and parent-lifecycle fixtures use the strict envelope.
 - **Backward incompatible by design**: the old `{request,approval}` envelope now returns `144 HOLD` rather than bypassing decoded-content checks. No migration bypass switch is provided.
 
 ## Example envelope schema
@@ -33,12 +33,14 @@ python -m unittest test_worker_content_binding_v01 test_research_content_binding
 # Ran 45 tests in 17.873s — OK
 ```
 
-The 25-case `test_research_content_binding_v01.py` suite is available in the associated local research package; do **not** claim those 25 are part of GitHub CI until the suite is committed. The GitHub branch contains the new 20-case integration suite. CI must be checked separately on the branch head before claiming a repository pass.
+The 25-case `test_research_content_binding_v01.py` suite was local-only and is **not part of GitHub CI**; the 45-test figure above is *historical*, from before the later V4.1 fixtures and Unicode additions. The tracked integration module grew from 20 to 24 tests by verified head `6e9765dd`, and now to **29** tests (five further research cases). These counts are module-specific, not whole-repository CI totals.
+
+**Verified prior head:** GitHub Actions at `6e9765dd2339aed03995b998d1cee77d1e7ca158` reported **742/742 tests** on both Python 3.11 and 3.13; V3.1 CATHARSIS, dependency-advisories and reachable-history-secrets also passed. **This follow-up revision is not considered CI-verified until GitHub completes its fresh jobs.**
 
 ## Known limitations and test gates
 
 1. `offline_dispatch_v3.dispatch_simulation` is still a separately importable in-process function. The new *worker entrypoint* prevents direct bypass **only for requests routed through that worker**; it does not impose a system-wide in-process gate or trusted OS isolation.
-2. Encoding detection is a bounded heuristic: legitimate Base64-looking text may HOLD, while unrecognized encodings and transformed Unicode may evade this example marker. No claim of complete sensitive-content detection.
+2. Encoding detection is a bounded heuristic: legitimate Base64-looking text may HOLD, while unrecognized encodings and transformed Unicode may evade this example marker. The scan additionally NFKC/NFKD-folds and ignores combining marks (including variation selectors) **only in its non-authoritative marker comparison**; the signed UTF-8 bytes remain unchanged. This can create false positives; it is not actual DLP, Unicode confusable coverage, or complete sensitive-content detection.
 3. The signed digest binds the **final decoded text**, not the raw outer transport representation or encoding declaration. This is appropriate only to this explicitly designed prototype policy; alternate representations and Unicode normalization require further review.
 4. The local SQLite replay store, configured keys, clock and worker process are trusted assumptions. Resource limits do not isolate filesystem, network, credentials or descendant processes.
 5. Comprehensive regression, CI checks, concurrency, performance measurements and independent adversarial security review remain separate requirements.
@@ -59,3 +61,9 @@ CI evaluation of the existing experimental research implementation. No
 authorization scope changes; `144 HOLD` remains in force.
 
 Do not mark the PR green unless the new exact-revision checks complete.
+
+## Five-case safe comparison scope (follow-up)
+
+The added signed READ/WRITE/unknown-intent regressions are native SYNTH_SHAI tests; they do **not** run Spatial Guards or establish equivalent clinical state-machine behavior. Our worker intentionally has no real READ, WRITE, or human-review queue. A signed fixed synthetic review can only return `SIMULATED_REVIEW_ONLY`, not authorize tool execution. The new replay test shows that re-encoding the same canonical content cannot reuse a consumed approval.
+
+No private third-party evaluation fixtures, code, benchmark payloads, or clinical data are published in this branch. Future cross-project comparison requires a separately approved, synthetic, common test contract and execution of both actual engines, with comparable outcomes and measured evidence. Keep this PR in draft under **144 HOLD**.
