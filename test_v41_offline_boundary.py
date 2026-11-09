@@ -1,4 +1,5 @@
 """V4.1 offline boundary regression checks; NOT sandbox validation or an audit."""
+import base64
 import hashlib
 import json
 import multiprocessing
@@ -70,7 +71,90 @@ class V41OfflineBoundaryTests(unittest.TestCase):
                 process.join(5)
 
     def valid_message(self):
-        return json.dumps({"request": self.request, "approval": self.approval}).encode()
+        # The V0.1 worker now requires an exact, content-bound envelope.
+        # The SHA-256 of decoded text must equal the signed plan_sha256.
+        return json.dumps({
+            "request": self.request,
+            "approval": self.approval,
+            "content": {
+                "raw_b64": base64.b64encode(b"synthetic-only").decode("ascii"),
+                "encodings": [],
+            },
+        }).encode()
+
+    # 111000 / 222000 / 333 / 33300 / 555 / 555000 / 444000 / 777000
+    # These are human-readable test stages, NEVER trusted authorization fields.
+    # Test credentials below are ephemeral and must not be used outside this suite.
+
+    def test_symbolic_verification_codes_do_not_grant_execution(self):
+        codes = b"111000-222000-333-33300-555-555000-444000/777000"
+        forged = json.loads(self.valid_message())
+        forged["content"]["raw_b64"] = base64.b64encode(codes).decode("ascii")
+        forged["request"]["action"] = "run_command"
+        forged["approval"] = {"symbolic_code": codes.decode("ascii")}
+        self.assertEqual(self.exchange(json.dumps(forged).encode()),
+                         {"decision": HOLD, "simulated_effect": None})
+        # A rejected symbolic request must not consume the genuine one-use approval.
+        self.assertEqual(self.exchange(self.valid_message())["decision"], SIMULATED)
+        self.assertEqual(self.exchange(self.valid_message())["decision"], HOLD)
+
+    def test_declared_nested_encoding_remains_bound_and_single_use(self):
+        text = b"synthetic-only"
+        double_base64 = base64.b64encode(base64.b64encode(text))
+        msg = json.loads(self.valid_message())
+        msg["content"] = {"raw_b64": base64.b64encode(double_base64).decode("ascii"),
+                          "encodings": ["base64", "base64"]}
+        payload = json.dumps(msg).encode()
+        self.assertEqual(self.exchange(payload)["decision"], SIMULATED)
+        self.assertEqual(self.exchange(payload)["decision"], HOLD)
+
+    def test_invalid_encoded_content_cannot_consume_valid_signature(self):
+        good = json.loads(self.valid_message())
+        bad_cases = []
+        no_content = dict(good)
+        no_content.pop("content")
+        bad_cases.append(no_content)
+        for payload, chain in (
+            (b"changed-canonical-text", []),
+            (base64.b64encode(b"synthetic-only"), []),
+            (base64.b64encode(b"synthetic-only"), ["percent"]),
+            (b"synthetic-only", ["base64", "base64", "base64", "base64"]),
+        ):
+            bad = json.loads(self.valid_message())
+            bad["content"] = {
+                "raw_b64": base64.b64encode(payload).decode("ascii"),
+                "encodings": chain,
+            }
+            bad_cases.append(bad)
+        malformed_transfer = json.loads(self.valid_message())
+        malformed_transfer["content"]["raw_b64"] = "not!canonical!base64"
+        bad_cases.append(malformed_transfer)
+        for i, candidate in enumerate(bad_cases):
+            with self.subTest(case=i):
+                self.assertEqual(self.exchange(json.dumps(candidate).encode()),
+                                 {"decision": HOLD, "simulated_effect": None})
+        # The same exact authorized request still validates only once afterward.
+        self.assertEqual(self.exchange(self.valid_message())["decision"], SIMULATED)
+        self.assertEqual(self.exchange(self.valid_message())["decision"], HOLD)
+
+    def test_validly_signed_encoded_synthetic_marker_is_held(self):
+        # Test a blocked payload even when the SHA-256 and Ed25519 signature match.
+        sensitive = b"SYNTHETIC_CONFIDENTIAL_EXAMPLE"
+        request = dict(self.request, request_id="v41-marker-only",
+                       plan_sha256=hashlib.sha256(sensitive).hexdigest())
+        signed = dict(request, operator_id="test-operator",
+                      nonce="v41-marker-nonce-000002", expires_at=self.now + 30)
+        signed["signature"] = self.private.sign(
+            canonical({k: signed[k] for k in SIGNED_FIELDS})).hex()
+        twice = base64.b64encode(base64.b64encode(sensitive))
+        encoded = {
+            "request": request,
+            "approval": signed,
+            "content": {"raw_b64": base64.b64encode(twice).decode("ascii"),
+                        "encodings": ["base64", "base64"]},
+        }
+        self.assertEqual(self.exchange(json.dumps(encoded).encode()),
+                         {"decision": HOLD, "simulated_effect": None})
 
     def test_resource_limit_initialization_failure_is_hold_without_input(self):
         response = self.exchange(target=_simulate_limit_failure)
@@ -81,7 +165,8 @@ class V41OfflineBoundaryTests(unittest.TestCase):
                          {"trusted_database_path": ":memory:"},
                          {"now": 0}):
             with self.subTest(injected=injected):
-                msg = {"request": self.request, "approval": self.approval, **injected}
+                msg = json.loads(self.valid_message())
+                msg.update(injected)
                 self.assertEqual(self.exchange(json.dumps(msg).encode())["decision"], HOLD)
         # Earlier rejections must not consume the valid one-use approval.
         self.assertEqual(self.exchange(self.valid_message())["decision"], SIMULATED)

@@ -1,4 +1,5 @@
 """Separate-process, byte-only, single-request adversarial evaluation."""
+import base64
 import hashlib
 import json
 import multiprocessing
@@ -62,7 +63,9 @@ class WorkerTests(unittest.TestCase):
 
     def transmit(self, request=None, approval=None):
         body = {"request": self.request if request is None else request,
-                "approval": self.approval if approval is None else approval}
+                "approval": self.approval if approval is None else approval,
+                "content": {"raw_b64": base64.b64encode(b"review").decode("ascii"),
+                            "encodings": []}}
         return self.exchange(json.dumps(body).encode("utf-8"))
 
     def test_signed_request_runs_only_simulated_effect(self):
