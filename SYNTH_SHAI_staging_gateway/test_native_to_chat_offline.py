@@ -247,8 +247,12 @@ class NativeToChatOfflineTests(unittest.TestCase):
 
     def test_missing_shared_quota_table_blocks_provider(self):
         token = self.login()
-        with sqlite3.connect(self.db_path) as db:
+        db = sqlite3.connect(self.db_path)
+        try:
             db.execute("DROP TABLE accepted")
+            db.commit()
+        finally:
+            db.close()
         self.assertEqual(self.chat(token)[0], 503)
         self.assertEqual(self.provider_calls, [])
 
