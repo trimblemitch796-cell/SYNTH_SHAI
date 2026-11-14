@@ -1,6 +1,17 @@
 package org.tuuwanasavi.synthshai
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -67,29 +78,80 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ShaiOfflineScreen() {
     var nextId by remember { mutableStateOf(1) }
-    val messages = remember {
-        mutableStateListOf(
-            ChatLine(
-                0,
-                "Welcome to SYNTH_SHAI Android V0.2.3. This is an offline scripted demo, not a live AI service.",
-                false
-            )
-        )
-    }
+    val messages = remember { mutableStateListOf<ChatLine>() }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("local_model", 0) }
+    var model by remember { mutableStateOf(prefs.getString("uri", null)?.let(Uri::parse)) }
+    val ready = model != null
+    var status by remember { mutableStateOf(if (ready) "Model ready" else "Select the Qwen2.5-0.5B-Instruct Q4_K_M file") }
+    var busy by remember { mutableStateOf(false) }
+    val stop = remember { AtomicBoolean(false) }
+    val scope = rememberCoroutineScope()
+    DisposableEffect(Unit) { onDispose { stop.set(true) } }
     var draft by remember { mutableStateOf("") }
-    var lastReply by remember { mutableStateOf(OfflineReplies.Reply("", OfflineReplies.Topic.NONE)) }
     val listState = rememberLazyListState()
+    fun runWork(label: String, work: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        stop.set(false)
+        status = label
+        scope.launch {
+            try {
+                work()
+                status = if (stop.get()) "Stopped" else "Model ready"
+            } catch (e: Exception) {
+                status = e.localizedMessage ?: "Local operation failed"
+            } catch (e: LinkageError) {
+                status = "The native runtime could not load on this device."
+            } finally {
+                busy = false
+            }
+        }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runWork("Verifying model…") {
+            withContext(Dispatchers.IO) {
+                withVerifiedModel(context, uri, stop) { }
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val previous = model
+            prefs.edit().putString("uri", uri.toString()).apply()
+            model = uri
+            if (previous != null && previous != uri) runCatching {
+                context.contentResolver.releasePersistableUriPermission(previous, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+    }
 
     fun sendMessage() {
         val typed = draft.trim()
-        if (typed.isEmpty()) return
-        val response = OfflineReplies.reply(typed, lastReply)
-        lastReply = response
-        messages.add(ChatLine(nextId++, typed, true))
-        messages.add(ChatLine(nextId++, response.message, false))
-        // Bound session memory; never persist messages to disk or a service.
-        while (messages.size > maxChatLines) messages.removeAt(0)
-        draft = ""
+        if (typed.isEmpty() || busy || !ready) return
+        val selected = model ?: return
+        val prompt = buildString {
+            append("<|im_start|>system\nYou are SHAI, a helpful offline text companion.<|im_end|>\n")
+            fun turn(role: String, text: String) {
+                append("<|im_start|>").append(role).append('\n')
+                append(text.replace("<|", "< |")).append("<|im_end|>\n")
+            }
+            // Keep only complete recent exchanges. Native code enforces the token limit.
+            messages.takeLast(4).forEach { turn(if (it.fromHuman) "user" else "assistant", it.content) }
+            turn("user", typed)
+            append("<|im_start|>assistant\n")
+        }
+        runWork("Generating on this phone…") {
+            val response = withContext(Dispatchers.Default) {
+                withVerifiedModel(context, selected, stop) { fd ->
+                    LocalEngine.generate(fd, prompt.encodeToByteArray(), stop).decodeToString().trim()
+                }
+            }
+            if (!stop.get()) {
+                check(response.isNotEmpty()) { "The model returned no text." }
+                messages.add(ChatLine(nextId++, typed, true))
+                messages.add(ChatLine(nextId++, response, false))
+                while (messages.size > maxChatLines) messages.removeAt(0)
+                draft = ""
+            }
+        }
     }
 
     LaunchedEffect(messages.size, messages.lastOrNull()?.id) {
@@ -111,15 +173,20 @@ private fun ShaiOfflineScreen() {
                 color = readableText
             )
             Text(
-                "OFFLINE DEMO  •  144 HOLD  •  No network or AI backend",
+                "ON-DEVICE AI  •  144 HOLD",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color(0xFFB8D6FF)
             )
             Text(
-                "Messages stay in this screen's memory only. This app has no live AI service.",
+                status,
                 style = MaterialTheme.typography.bodySmall,
                 color = secondaryText
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!busy) Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Select GGUF") }
+                if (busy) Button(onClick = { stop.set(true) }) { Text("Stop") }
+                if (!busy && messages.isNotEmpty()) Button(onClick = { messages.clear(); draft = ""; status = "Chat cleared" }) { Text("Clear chat") }
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -153,6 +220,7 @@ private fun ShaiOfflineScreen() {
             ) {
                 OutlinedTextField(
                     value = draft,
+                    enabled = ready && !busy,
                     onValueChange = { draft = it.take(1000) },
                     label = { Text("Message SHAI (offline)") },
                     modifier = Modifier.weight(1f),
@@ -170,7 +238,7 @@ private fun ShaiOfflineScreen() {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
-                    enabled = draft.isNotBlank(),
+                    enabled = ready && !busy && draft.isNotBlank(),
                     onClick = { sendMessage() }
                 ) { Text("Send") }
             }

@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(shai_local LANGUAGES C CXX)
+include(FetchContent)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(GGML_NATIVE OFF CACHE BOOL "")
+set(GGML_CPU_ARM_ARCH "armv8-a" CACHE STRING "")
+set(GGML_OPENMP OFF CACHE BOOL "")
+set(LLAMA_BUILD_COMMON OFF CACHE BOOL "")
+set(LLAMA_CURL OFF CACHE BOOL "")
+FetchContent_Declare(llama_src
+    URL https://codeload.github.com/ggml-org/llama.cpp/tar.gz/74d4f5b041ad837153b0e90fc864b8290e01d8d5
+    URL_HASH SHA256=8dd9fcc7c17f972673960ffdcc7521f52de5a9ec594aa6acebd9dfd8c17c0a5c)
+FetchContent_MakeAvailable(llama_src)
+add_library(shai_local SHARED chat.cpp)
+target_compile_features(shai_local PRIVATE cxx_std_17)
+target_link_libraries(shai_local PRIVATE llama)
