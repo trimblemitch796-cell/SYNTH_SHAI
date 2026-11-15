@@ -1,9 +1,10 @@
-name: Android V0.2.3 Offline Debug APK
+name: Android Offline Diagnostic Debug APK (144 HOLD)
 
 on:
   push:
     branches:
       - review/android-v01-offline-app
+      - research/android-qwen-v031-load-diagnostics
     paths:
       - 'android-app/**'
       - '.github/workflows/android-v01-debug.yml'
@@ -29,13 +30,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Verify runner Android SDK and install API 35
+      - name: Verify runner Android SDK and install pinned build tools
         run: |
+          set -eu
           echo "ANDROID_HOME=${ANDROID_HOME:?Android SDK missing on runner}"
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
           "$SDKMANAGER" --version
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
@@ -53,17 +55,36 @@ jobs:
             exit 1
           fi
 
+      - name: Test native diagnostic helper with sanitizers
+        run: |
+          set -eu
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -pthread \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+            -Iandroid-app/app/src/main/cpp \
+            android-app/native-tests/load_diagnostics_test.cpp \
+            -o /tmp/shai-load-diagnostics-test
+          /tmp/shai-load-diagnostics-test
+
       - name: Build Android debug APK and unit tests
         working-directory: android-app
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
 
-      - name: Calculate APK SHA-256
-        run: sha256sum android-app/app/build/outputs/apk/debug/app-debug.apk
+      - name: Package diagnostic APK and source evidence
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          mkdir -p deliverables/android-diagnostics
+          cp android-app/app/build/outputs/apk/debug/app-debug.apk deliverables/android-diagnostics/
+          printf 'Source commit: %s\nResearch diagnostic build; 144 HOLD. Not device-verified.\n' "$SOURCE_SHA" > deliverables/android-diagnostics/BUILD_INFO.txt
+          cd deliverables/android-diagnostics
+          sha256sum app-debug.apk > SHA256SUMS.txt
+          cat BUILD_INFO.txt SHA256SUMS.txt
 
-      - name: Upload installable debug APK
+      - name: Upload diagnostic debug APK for review only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: SYNTH_SHAI_Android_v0.2.3_debug_APK
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          name: SYNTH_SHAI_Android_Local_Diagnostics_${{ github.sha }}
+          path: deliverables/android-diagnostics/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
