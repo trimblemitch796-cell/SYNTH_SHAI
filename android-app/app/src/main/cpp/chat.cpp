@@ -1,9 +1,21 @@
 #include <jni.h>
 #include "llama.h"
+#include "LoadDiagnostics.h"
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
+
+// The llama/ggml logger is global. Register it once with lifetime-stable storage.
+// Serialize native calls so one request cannot receive another request's errors.
+static shai::LoadDiagnostics load_diagnostics;
+static std::mutex generation_mutex;
+
+static void engine_log(ggml_log_level level, const char *text, void *) noexcept {
+    if (level == GGML_LOG_LEVEL_ERROR || level == GGML_LOG_LEVEL_WARN) {
+        load_diagnostics.append(text);
+    }
+}
 
 static void fail(JNIEnv *env, const char *message) {
     env->ThrowNew(env->FindClass("java/lang/IllegalStateException"), message);
@@ -12,7 +24,16 @@ static void fail(JNIEnv *env, const char *message) {
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
         JNIEnv *env, jobject, jint fd, jbyteArray input, jobject stop) {
-    static const bool initialized = [] { llama_backend_init(); return true; }();
+    std::unique_lock<std::mutex> generation_lock(generation_mutex, std::try_to_lock);
+    if (!generation_lock.owns_lock()) {
+        fail(env, "Another local generation is running. Stop it before retrying.");
+        return nullptr;
+    }
+    static const bool initialized = [] {
+        llama_log_set(engine_log, nullptr);
+        llama_backend_init();
+        return true;
+    }();
     (void)initialized;
     auto get = env->GetMethodID(env->GetObjectClass(stop), "get", "()Z");
     auto stopped = [&] { return env->CallBooleanMethod(stop, get) == JNI_TRUE; };
@@ -22,8 +43,16 @@ Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
     mp.n_gpu_layers = 0;
     auto path = "/proc/self/fd/" + std::to_string(fd);
     using Model = std::unique_ptr<llama_model, decltype(&llama_model_free)>;
-    Model model(llama_model_load_from_file(path.c_str(), mp), llama_model_free);
-    if (!model) { fail(env, "Model load failed. Check memory and the selected file."); return nullptr; }
+    Model model(nullptr, llama_model_free);
+    {
+        shai::LoadDiagnosticScope capture(load_diagnostics);
+        model.reset(llama_model_load_from_file(path.c_str(), mp));
+        if (!model) {
+            const auto report = load_diagnostics.finish("Model loading");
+            fail(env, report.data());
+            return nullptr;
+        }
+    }
     auto vocab = llama_model_get_vocab(model.get());
     std::vector<llama_token> tokens(928);
     auto count = llama_tokenize(vocab, prompt.data(), prompt.size(), tokens.data(), tokens.size(), false, true);
@@ -33,8 +62,17 @@ Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
     cp.n_batch = 128;
     cp.n_threads = cp.n_threads_batch = 3;
     using Context = std::unique_ptr<llama_context, decltype(&llama_free)>;
-    Context ctx(llama_init_from_model(model.get(), cp), llama_free);
-    if (!ctx) { fail(env, "Insufficient memory for the conversation."); return nullptr; }
+    Context ctx(nullptr, llama_free);
+    {
+        shai::LoadDiagnosticScope capture(load_diagnostics);
+        ctx.reset(llama_init_from_model(model.get(), cp));
+        if (!ctx) {
+            const auto report = load_diagnostics.finish("Conversation initialization");
+            fail(env, report.data());
+            return nullptr;
+        }
+    }
+    // Capture is disabled before processing any conversation text.
     for (int offset = 0; offset < count && !stopped(); offset += 128) {
         if (llama_decode(ctx.get(), llama_batch_get_one(tokens.data()+offset, std::min(128, count-offset)))) {
             fail(env, "Prompt processing failed."); return nullptr;
