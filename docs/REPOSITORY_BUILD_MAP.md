@@ -1,8 +1,8 @@
 # SYNTH_SHAI: repository and build map
 
-Navigation snapshot: **16 November 2026**. This page separates existing workstreams; it does not merge them or certify a release.
+Navigation snapshot: **16 November 2026, after PR #115 merged**. This page separates existing workstreams; it does not merge them or certify a release.
 
-**144 HOLD remains unchanged.** Research results, successful builds and model replies do not authorize consequential actions or establish independent security validation.
+**144 HOLD remains unchanged.** Research results, successful builds and model replies do not authorize consequential actions or establish independent security validation. The HOLD label is not evidence that generated-output safeguards or independent USHAI oversight are implemented or verified.
 
 ## Start here
 
@@ -15,9 +15,10 @@ Navigation snapshot: **16 November 2026**. This page separates existing workstre
 
 | Workstream | Where to look | What it is, and is not |
 | --- | --- | --- |
-| Merged offline Android demonstration | [main Android README](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/main/android-app/README.md) | Fixed scripted replies and written practice. Not a general generative model. |
-| Scripted Linux CLI and Android build instructions | [main build matrix](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/main/android-app/BUILD_MATRIX.md) | Separate artifacts from the scripted reply engine. Not instructions for every research branch. |
-| Local Qwen Android research | [research/android-local-qwen-chat](https://github.com/trimblemitch796-cell/SYNTH_SHAI/tree/research/android-local-qwen-chat) | Separate local-model research branch; do not confuse its model-backed chat with the main scripted demonstration. |
+| Current main: experimental Android local chat 0.3.4 | [merged PR #115](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/115) and [local-chat review](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/main/android-app/LOCAL_CHAT_REVIEW_034.md) | On-device generated Qwen text, private GGUF import, load/exit diagnostics and bounded chat/draft restoration. Research only, not a certified production or safety release. |
+| Historical scripted Android demonstration | [pre-merge Android source](https://github.com/trimblemitch796-cell/SYNTH_SHAI/tree/f3f219769634efc485b87ac1fbd027ef326201f9/android-app) | Earlier fixed scripted replies and written practice. This is not the current main Android response path. |
+| Scripted Linux CLI and historical Android instructions | [main build matrix](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/main/android-app/BUILD_MATRIX.md) | The CLI still uses the scripted engine. Older Android instructions do not describe the current local-model app; use the local-chat review above. |
+| Local Qwen Android research | [research/android-local-qwen-chat](https://github.com/trimblemitch796-cell/SYNTH_SHAI/tree/research/android-local-qwen-chat) | Earlier local-model research branch. Main now contains consolidated local chat through PR #115; this branch is not the current 0.3.4 source. |
 | Native model-load diagnostics | [research/android-qwen-v031-load-diagnostics](https://github.com/trimblemitch796-cell/SYNTH_SHAI/tree/research/android-qwen-v031-load-diagnostics) | Separate diagnostic research branch, not a production release or proof that model loading works on every phone. |
 | Offline synthetic worker boundary research | [draft PR #112](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/112) | Content binding in a synthetic worker. Not complete OS isolation or deployment approval. |
 | Protected staging chat clients | [draft PR #113](https://github.com/trimblemitch796-cell/SYNTH_SHAI/pull/113) | Staging-client research; distinct from offline on-device inference. |
@@ -25,9 +26,13 @@ Navigation snapshot: **16 November 2026**. This page separates existing workstre
 
 ### Important Android navigation warning
 
-At this snapshot, the diagnostic branch still contains the older scripted-demo `android-app/README.md` and `BUILD_MATRIX.md`. Treat those pages as historical instructions for that demo, **not as an accurate description of the local-model branch**.
+Main now includes PR #115 at merge commit `d1091d3ed861d0eff6e989b8caa4e2a5cde975c0`. Its [Gradle configuration](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/main/android-app/app/build.gradle.kts) identifies `0.3.4-screen-state`, version code `10`, package `org.tuuwanasavi.synthshai.localchat.diagnostics`, and ARM64 phone builds (x86_64 is available for emulator CI). Merging source does not install or certify a phone update.
+
+Older scripted-demo `android-app/README.md` and `BUILD_MATRIX.md` content remains historical documentation, including on the diagnostic branch. **Do not use it to describe the current main Android response path.**
 
 The diagnostic branch's [Gradle configuration](https://github.com/trimblemitch796-cell/SYNTH_SHAI/blob/research/android-qwen-v031-load-diagnostics/android-app/app/build.gradle.kts) identifies `0.3.0-local`, version code `7`, package `org.tuuwanasavi.synthshai.localchat`, and `arm64-v8a`. The branch name contains “v031”, but that is not its embedded APK version. Identify a build by its exact source commit, artifact checksum and signing identity, not by its filename or branch name alone.
+
+The current generated-response path has no wired generated-output safeguard. Old scripted safety tests do not validate Qwen responses, and independent security/USHAI verification remains unestablished. Emulator inference and persistence smoke checks are integration evidence, not general accuracy or safety certification. Screen locking/backgrounding can still interrupt generation; recent saved chat is bounded, not permanent learning.
 
 A GGUF model file is separate from the APK. Selecting a file, verifying its bytes, successfully loading the native engine, and generating a response are distinct checks. A local response does not by itself prove factual accuracy, durable memory, ongoing training, consciousness or complete network isolation.
 
