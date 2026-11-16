@@ -5,11 +5,11 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    // Reuse the exact JVM-compatible offline response engine shipped in the APK.
-    // MainActivity.kt requires Android APIs and is deliberately excluded.
+    // Share only the pure scripted JVM engine, not Android runtime/UI helpers.
+    // Explicit inclusions prevent future Android files leaking into this source set.
     sourceSets.getByName("main").kotlin.apply {
         srcDir("../app/src/main/java")
-        exclude("**/MainActivity.kt")
+        include("**/OfflineReplies.kt", "**/LinuxOfflineChat.kt")
     }
 }
 
