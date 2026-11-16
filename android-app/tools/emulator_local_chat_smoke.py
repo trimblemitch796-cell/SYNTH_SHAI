@@ -117,14 +117,73 @@ def launch():
 
 
 def type_draft(message):
+    """Paced UI injection; never send text that the app has not saved exactly.
+
+    Some emulator/IME combinations lose fast adb input. Accessibility may also
+    expose only a clipped segment of a multiline editor. The app's own saved
+    chat_draft is authoritative, and generate() later verifies the saved user turn.
+    No preference is written here: every character still enters through the UI.
+    """
     assert re.fullmatch(r"[A-Za-z0-9 ]+", message), "Fixture must be ASCII words/digits"
+    assert len(message) <= 1000, "Fixture exceeds the actual draft limit"
+
+    def wait_saved(expected, seconds=4):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            actual = read_prefs().get("chat_draft") or ""
+            if actual == expected:
+                return True
+            time.sleep(0.15)
+        return False
+
+    def clear_for_retry():
+        current = field(hierarchy())
+        assert current.get("enabled") == "true", "Message field disabled during retry"
+        tap(current)
+        adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+        saved = read_prefs().get("chat_draft") or ""
+        # Extra deletes cover any late input from the failed attempt. Bounded,
+        # paced groups avoid the same burst-input problem during clearing.
+        count = max(len(saved), len(current.get("text", "")), len(message)) + 8
+        for offset in range(0, count, 8):
+            adb("shell", "input", "keyevent", *(["KEYCODE_DEL"] * min(8, count - offset)))
+            time.sleep(0.15)
+        assert wait_saved(""), "Could not clear incorrect draft; refusing to Send"
+        assert not field(hierarchy()).get("text", ""), "Editor still contains text after clearing"
+
     current = field(hierarchy())
     assert current.get("enabled") == "true", "Message field disabled"
     assert not current.get("text", ""), "Expected empty draft before typing"
-    tap(current)
-    adb("shell", "input", "text", message.replace(" ", "%s"))
-    wait_ui(lambda r: field(r).get("text") == message, "exact draft typed")
-    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    assert not (read_prefs().get("chat_draft") or ""), "Expected empty saved draft before typing"
+    last_actual = ""
+    for attempt in range(3):  # Initial attempt plus at most two retries.
+        if attempt:
+            print(f"INPUT RETRY {attempt}/2: app did not save the exact prefix; never sent", flush=True)
+            clear_for_retry()
+        tap(field(hierarchy()))
+        complete = True
+        for offset in range(0, len(message), 8):
+            chunk = message[offset:offset + 8]
+            adb("shell", "input", "text", chunk.replace(" ", "%s"))
+            time.sleep(0.15)
+            if not wait_saved(message[:offset + len(chunk)]):
+                last_actual = read_prefs().get("chat_draft") or ""
+                complete = False
+                break
+        if not complete:
+            continue
+        assert wait_saved(message), "Full saved draft changed after prefix verification"
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        visible = field(hierarchy()).get("text", "")
+        actual = read_prefs().get("chat_draft") or ""
+        if actual == message and visible and visible in message:
+            if visible != message:
+                print("INPUT NOTE: accessibility shows a clipped segment; full saved draft verified", flush=True)
+            print("UI PASS: exact full draft saved through paced input", flush=True)
+            return
+        last_actual = actual
+    raise AssertionError("Emulator input failed after two retries; refusing to Send. "
+                         f"Expected={message!r}, saved={last_actual!r}")
 
 
 def read_prefs():
