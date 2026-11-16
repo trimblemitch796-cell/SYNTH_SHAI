@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Phone builds remain ARM64; emulator CI selects its matching native ABI.
+val shaiAbi = providers.gradleProperty("shaiAbi").getOrElse("arm64-v8a")
+require(shaiAbi in setOf("arm64-v8a", "x86_64")) { "Unsupported SHAI ABI" }
+
 android {
     namespace = "org.tuuwanasavi.synthshai"
     compileSdk = 35
@@ -15,7 +19,7 @@ android {
         versionCode = 10
         versionName = "0.3.4-screen-state"
         applicationIdSuffix = ".localchat.diagnostics"
-        ndk { abiFilters += "arm64-v8a" }
+        ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
     }
 
