@@ -28,3 +28,5 @@ See `native-tests/LOAD_DIAGNOSTICS.md` for model provenance, data storage, check
 ## CI compatibility follow-up
 
 The original exact-head run exposed two real integration failures: Linux CLI accidentally included Android-only helpers through a broad source glob, and the emulator attempted to launch the retired package/activity. The CLI now explicitly shares only its pure scripted engine. Emulator CI builds a matching x86_64 variant and tests the current native app instead of its obsolete quiz UI; phone builds remain ARM64. Existing scripted JVM/CLI safety and tutoring tests are retained. No failing check is disabled or made non-blocking.
+
+The emulator inference fixture uses grounded compass/peach retrieval and requires the exact requested one-word answers from assistant-role saved output plus the displayed reply. It is an integration smoke test, not a general reasoning benchmark or output-safety evaluation. Host trial arithmetic prompts produced incorrect answers with the small model; those failures remain a model-quality limitation, not evidence of correct general arithmetic.

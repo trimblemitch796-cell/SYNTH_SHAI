@@ -25,8 +25,8 @@ SIZE = 491400032
 SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
 PRIVATE_MODEL = "no_backup/verified-model/qwen-verified.gguf"
 PREFS = "shared_prefs/local_model.xml"
-FIRST = "What is two plus two Answer with one word"
-SECOND = "Add one to that number Answer with one word"
+FIRST = "Mira has a compass and a peach Which item can Mira eat Answer with one word"
+SECOND = "Which item could help her find north Answer with one word"
 DRAFT = "Unsent draft survives restart"
 
 
@@ -199,7 +199,7 @@ def generate(message, expected_pairs, expected_answer, timeout):
             answer = saved[-1][1]
             assert saved[-1][0] is False and answer.strip(), "No actual assistant-role output"
             assert answer not in (FIRST, SECOND), "Prompt echoed instead of an answer"
-            assert re.search(expected_answer, answer, re.IGNORECASE), f"Unexpected generated answer: {answer!r}"
+            assert re.fullmatch(r"\s*" + re.escape(expected_answer) + r"[.!]?\s*", answer, re.IGNORECASE), f"Unexpected generated answer: {answer!r}"
             assert has_text(root, answer.strip()), "Generated assistant output not displayed in UI"
             assert not field(root).get("text", ""), "Successful send did not clear draft"
             print(f"INFERENCE PASS: turn {expected_pairs}, assistant={answer!r}", flush=True)
@@ -246,8 +246,8 @@ def main():
     adb("shell", "svc", "data", "disable")
     assert adb("shell", "settings", "get", "global", "airplane_mode_on") == "1", "Airplane mode not enabled"
     launch()
-    generate(FIRST, 1, r"\b(?:four|4)\b", args.generation_timeout)
-    completed = generate(SECOND, 2, r"\b(?:five|5)\b", args.generation_timeout)
+    generate(FIRST, 1, "peach", args.generation_timeout)
+    completed = generate(SECOND, 2, "compass", args.generation_timeout)
     type_draft(DRAFT)
     deadline = time.monotonic() + 10
     while read_prefs().get("chat_draft") != DRAFT and time.monotonic() < deadline:
