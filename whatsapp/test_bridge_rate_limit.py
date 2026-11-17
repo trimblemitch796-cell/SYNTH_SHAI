@@ -4,6 +4,7 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 from whatsapp import bridge
+from whatsapp._testutil import isolate_review_queue
 from whatsapp.bridge import RateLimiter, SeenIds, apply_rate_limit, extract_messages
 
 
@@ -44,6 +45,7 @@ class LimiterTests(unittest.TestCase):
 
 class HttpRateLimitTests(unittest.TestCase):
     def test_over_limit_is_200_without_hold(self):
+        isolate_review_queue(self)
         env = patch.dict(os.environ, {'SHAI_META_APP_SECRET': 's3cret'}); env.start(); self.addCleanup(env.stop)
         for name, val in (('SEEN', SeenIds()), ('LIMITER', RateLimiter(per_sender=1, global_limit=10))):
             p = patch.object(bridge, name, val); p.start(); self.addCleanup(p.stop)

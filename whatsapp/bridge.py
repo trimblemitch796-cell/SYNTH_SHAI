@@ -17,6 +17,8 @@ from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+from whatsapp.review_queue import ReviewError, ReviewQueue, DEFAULT_REVIEW_DB, PENDING
+
 MAX_BYTES = 65536
 SEEN_TTL_SECONDS = 24 * 3600      # Meta retries webhooks for up to ~1 day
 SEEN_MAX_IDS = 10000
@@ -42,6 +44,10 @@ class SeenIds:
             while len(self._ids) > self.max_ids:
                 self._ids.popitem(last=False)
             return True
+
+    def forget(self, message_id):
+        with self._lock:
+            self._ids.pop(message_id, None)
 
 
 DEFAULT_DEDUPE_DB = str(Path(__file__).resolve().parent.parent / '.shai_data' / 'whatsapp_seen_ids.sqlite')
@@ -77,6 +83,11 @@ class SqliteSeenIds:
                 db.execute('ROLLBACK')
                 raise
         return fresh
+
+    def forget(self, message_id):
+        key = hashlib.sha256(str(message_id).encode()).hexdigest()
+        with closing(self._connect()) as db:
+            db.execute('DELETE FROM seen WHERE id_sha256 = ?', (key,))
 
     def count(self) -> int:
         with closing(self._connect()) as db:
@@ -173,6 +184,45 @@ def apply_rate_limit(rows: list, limiter: RateLimiter) -> tuple:
     return kept, dropped
 
 
+REVIEW_QUEUE = None   # created lazily from SHAI_REVIEW_DB (tests patch in a temp queue)
+
+
+def get_review_queue():
+    global REVIEW_QUEUE
+    with _SEEN_LOCK:
+        if REVIEW_QUEUE is None:
+            REVIEW_QUEUE = ReviewQueue(os.environ.get('SHAI_REVIEW_DB', DEFAULT_REVIEW_DB))
+        return REVIEW_QUEUE
+
+
+REVIEW_TOKEN_MIN_LEN = 32
+
+
+def review_token_problem():
+    """None if SHAI_REVIEW_TOKEN is usable, else why review is disabled (fail closed)."""
+    token = os.environ.get('SHAI_REVIEW_TOKEN', '')
+    if not token:
+        return 'review_disabled'
+    if len(token) < REVIEW_TOKEN_MIN_LEN:
+        return 'review_token_too_short'
+    for other in ('SHAI_VERIFY_TOKEN', 'SHAI_META_APP_SECRET'):
+        value = os.environ.get(other, '')
+        if value and hmac.compare_digest(token.encode(), value.encode()):
+            return 'review_token_reused'
+    return None
+
+
+def review_auth_ok(header) -> bool:
+    """Constant-time check of `Authorization: Bearer <SHAI_REVIEW_TOKEN>`."""
+    if review_token_problem() is not None or not isinstance(header, str) or not header.startswith('Bearer '):
+        return False
+    return hmac.compare_digest(header[7:].encode(), os.environ['SHAI_REVIEW_TOKEN'].encode())
+
+
+def _loopback(addr) -> bool:
+    return addr in ('127.0.0.1', '::1') or addr.startswith('127.')
+
+
 def verify_token_ok(expected: str, mode, provided) -> bool:
     """Constant-time hub.verify_token check."""
     if not expected or mode != ['subscribe'] or not isinstance(provided, list) or len(provided) != 1:
@@ -218,6 +268,7 @@ def extract_messages(payload: dict) -> list:
                                    # only a hash of the sender is kept, for rate limiting
                                    'sender_sha256': hashlib.sha256(sender.encode()).hexdigest()
                                    if isinstance(sender, str) and sender else None,
+                                   'body':message['text']['body'],   # stored for human review only; never logged
                                    'decision':decide(message['text']['body'])})
     return result
 
@@ -230,8 +281,73 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def respond_json(self, code: int, data):
+        body = json.dumps(data, sort_keys=True).encode('utf-8')
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def review_gate(self):
+        """Fail closed: review needs a configured, distinct token, a matching bearer
+        header, and (unless SHAI_REVIEW_ALLOW_REMOTE=1) a loopback client."""
+        problem = review_token_problem()
+        if problem:
+            self.respond_json(503, {'error': problem})
+            return False
+        if os.environ.get('SHAI_REVIEW_ALLOW_REMOTE') != '1' and not _loopback(self.client_address[0]):
+            self.respond_json(403, {'error': 'review_loopback_only'})
+            return False
+        if not review_auth_ok(self.headers.get('Authorization')):
+            self.respond_json(401, {'error': 'unauthorized'})
+            return False
+        return True
+
+    def handle_review(self, method, path):
+        if not self.review_gate():
+            return
+        parts = path.strip('/').split('/')        # review, items[, id[, approve|reject]]
+        try:
+            queue = get_review_queue()
+            if method == 'GET' and parts == ['review', 'items']:
+                status = parse_qs(urlsplit(self.path).query).get('status', [PENDING])[0]
+                return self.respond_json(200, {'items': queue.list_items(status)})
+            if method == 'GET' and len(parts) == 3 and parts[:2] == ['review', 'items']:
+                return self.respond_json(200, queue.get(parts[2]))
+            if method == 'GET' and parts == ['review', 'audit']:
+                return self.respond_json(200, {'decisions': queue.audit_trail(),
+                                               'chain_ok': queue.verify_decisions()})
+            if method == 'POST' and len(parts) == 4 and parts[:2] == ['review', 'items'] \
+                    and parts[3] in ('approve', 'reject'):
+                try:
+                    n = int(self.headers.get('Content-Length', '0'))
+                except ValueError:
+                    return self.respond_json(400, {'error': 'bad_length'})
+                if n <= 0 or n > 8192:
+                    return self.respond_json(413, {'error': 'invalid_size'})
+                try:
+                    data = json.loads(self.rfile.read(n))
+                except ValueError:
+                    return self.respond_json(400, {'error': 'invalid_json'})
+                if not isinstance(data, dict):
+                    return self.respond_json(400, {'error': 'invalid_json'})
+                result = queue.decide(parts[2], parts[3], data.get('reviewer'), data.get('reason'))
+                print(json.dumps({'event': 'review_decision', 'decision': result['decision'],
+                                  'idempotent': result['idempotent'], 'sent': False}), flush=True)
+                return self.respond_json(200, result)
+            return self.respond_json(404, {'error': 'not_found'})
+        except ReviewError as exc:
+            code = {'not_found': 404, 'already_decided': 409}.get(exc.code, 400)
+            return self.respond_json(code, {'error': exc.code})
+        except (sqlite3.Error, OSError):
+            return self.respond_json(503, {'error': 'review_store_unavailable'})
+
     def do_GET(self):
         url = urlsplit(self.path)
+        if url.path == '/review' or url.path.startswith('/review/'):
+            return self.handle_review('GET', url.path)
         if url.path == '/health':
             return self.respond(200, 'ready: inbound only; outbound disabled')
         if url.path != '/webhook':
@@ -242,7 +358,10 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(200 if ok else 403, params.get('hub.challenge',[''])[0] if ok else 'forbidden')
 
     def do_POST(self):
-        if urlsplit(self.path).path != '/webhook':
+        path = urlsplit(self.path).path
+        if path == '/review' or path.startswith('/review/'):
+            return self.handle_review('POST', path)
+        if path != '/webhook':
             return self.respond(404, 'not found')
         try:
             n = int(self.headers.get('Content-Length', '0'))
@@ -269,6 +388,23 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(503, 'temporarily unavailable')
         # Dedupe first (a retry is not a new message), then rate-limit new messages.
         decisions, rate_limited = apply_rate_limit(decisions, get_limiter())
+        # Persist each new 144 HOLD for human review. If the store fails, un-mark the
+        # ids as seen and return 503 so Meta's retry is accepted later (no lost HOLD).
+        try:
+            queue = get_review_queue()
+            for m in decisions:
+                queue.enqueue(m.get('id'), m.get('sender_sha256'), m['body'],
+                              m['decision'].get('reply_draft'), m['decision']['reason'])
+        except (sqlite3.Error, OSError, ReviewError):
+            try:
+                seen = get_seen()
+                for m in decisions:
+                    if isinstance(m.get('id'), str) and m['id']:
+                        seen.forget(m['id'])
+            except (sqlite3.Error, OSError):
+                pass
+            print(json.dumps({'event':'review_store_unavailable'}), flush=True)
+            return self.respond(503, 'temporarily unavailable')
         # Deliberately log only decision type and count: no phone numbers or message bodies.
         print(json.dumps({'event':'authenticated_webhook','text_messages':len(decisions),
                           'duplicates_ignored':duplicates, 'rate_limited':rate_limited,
@@ -292,5 +428,10 @@ if __name__ == '__main__':
     if warning:
         print(warning, file=sys.stderr, flush=True)
     get_seen()   # fail at startup if the persistent dedupe store is unusable
+    get_review_queue()   # and the review queue
+    problem = review_token_problem()
+    if problem:
+        print(f'Review endpoints disabled ({problem}); set a distinct SHAI_REVIEW_TOKEN '
+              f'of at least {REVIEW_TOKEN_MIN_LEN} chars to enable.', file=sys.stderr, flush=True)
     print(f'SHAI inbound-only prototype listening on {host}:{port}')
     ThreadingHTTPServer((host, port), Handler).serve_forever()
