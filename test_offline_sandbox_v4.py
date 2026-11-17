@@ -1,4 +1,5 @@
 """Linux resource ceilings and fail-closed V4 worker, all offline."""
+import base64
 import hashlib
 import json
 import multiprocessing
@@ -85,7 +86,9 @@ class LinuxResourceWorkerTests(unittest.TestCase):
     def call_worker(self, request=None, approval=None):
         raw = json.dumps({
             "request": self.request if request is None else request,
-            "approval": self.approval if approval is None else approval
+            "approval": self.approval if approval is None else approval,
+            "content": {"raw_b64": base64.b64encode(b"offline").decode("ascii"),
+                        "encodings": []}
         }).encode("utf-8")
         return self.start(
             limited_worker_once,

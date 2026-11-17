@@ -1,4 +1,5 @@
 """Project-maintained Linux-only V4.1 offline parent lifecycle regression tests."""
+import base64
 import hashlib
 import json
 import multiprocessing
@@ -136,7 +137,9 @@ class ParentLifecycleTests(unittest.TestCase):
             signed = dict(request, operator_id="test", nonce="parent-once-nonce-000001",
                           expires_at=now + 30)
             signed["signature"] = key.sign(canonical({k: signed[k] for k in SIGNED_FIELDS})).hex()
-            payload = json.dumps({"request": request, "approval": signed}).encode("utf-8")
+            payload = json.dumps({"request": request, "approval": signed,
+                "content": {"raw_b64": base64.b64encode(b"offline").decode("ascii"),
+                            "encodings": []}}).encode("utf-8")
             kwargs = {"policy": PreflightPolicy(frozenset({"synthetic_review"})),
                       "trusted_operator_keys": keys,
                       "trusted_database_path": str(Path(root) / "approval.sqlite"), "now": now}
