@@ -1,0 +1,95 @@
+name: Android Confirmed Fixed Reply Research APK
+
+on:
+  push:
+    branches:
+      - research/voice-confirm-fixed-08
+    paths:
+      - 'android-voice-research/**'
+      - '.github/workflows/android-voice-confirm.yml'
+  pull_request:
+    paths:
+      - 'android-voice-research/**'
+      - '.github/workflows/android-voice-confirm.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify runner Android SDK and install pinned build tools
+        run: |
+          set -eu
+          echo "ANDROID_HOME=${ANDROID_HOME:?Android SDK missing on runner}"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --version
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
+
+      - name: Set up Gradle 8.10.2
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Confirm offline-only manifest
+        run: |
+          if grep -R -q 'android.permission.INTERNET\|android.permission.CAMERA' android-voice-research/app/src/main/AndroidManifest.xml; then
+            echo "Unexpected sensitive Android permission" >&2
+            exit 1
+          fi
+          if grep -R -qE 'https?://' android-voice-research/app/src/main/java; then
+            echo "Unexpected URL in offline app sources" >&2
+            exit 1
+          fi
+
+      - name: Test native diagnostic helper with sanitizers
+        run: |
+          set -eu
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -pthread \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+            -Iandroid-voice-research/app/src/main/cpp \
+            android-voice-research/native-tests/load_diagnostics_test.cpp \
+            -o /tmp/shai-load-diagnostics-test
+          /tmp/shai-load-diagnostics-test
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -pthread \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+            -Iandroid-voice-research/app/src/main/cpp \
+            android-voice-research/native-tests/model_file_preflight_test.cpp \
+            -o /tmp/shai-model-file-preflight-test
+          /tmp/shai-model-file-preflight-test
+
+      - name: Build Android debug APK and unit tests
+        working-directory: android-voice-research
+        run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+
+      - name: Package diagnostic APK and source evidence
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          mkdir -p deliverables/android-diagnostics
+          cp android-voice-research/app/build/outputs/apk/debug/app-debug.apk deliverables/android-diagnostics/
+          printf 'Source commit: %s\nResearch diagnostic build; 144 HOLD. Not device-verified.\n' "$SOURCE_SHA" > deliverables/android-diagnostics/BUILD_INFO.txt
+          cd deliverables/android-diagnostics
+          sha256sum app-debug.apk > SHA256SUMS.txt
+          cat BUILD_INFO.txt SHA256SUMS.txt
+
+      - name: Upload diagnostic debug APK for review only
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: SYNTH_SHAI_Confirmed_Fixed_Reply_${{ github.sha }}
+          path: deliverables/android-diagnostics/
+          if-no-files-found: error
+          retention-days: 7
