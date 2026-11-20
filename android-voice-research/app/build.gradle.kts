@@ -15,8 +15,8 @@ android {
         applicationId = "org.tuuwanasavi.synthshai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.8-confirmed-fixed-reply"
+        versionCode = 6
+        versionName = "0.8.1-qwen-review"
         applicationIdSuffix = ".localchat.confirmedfixture"
         ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
