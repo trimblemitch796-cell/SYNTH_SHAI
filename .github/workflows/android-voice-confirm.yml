@@ -1,9 +1,9 @@
-name: Android Confirmed Fixed Reply Research APK
+name: Android Reviewed Qwen Voice Research APK
 
 on:
   push:
     branches:
-      - research/voice-confirm-fixed-08
+      - research/voice-reviewed-qwen-09
     paths:
       - 'android-voice-research/**'
       - '.github/workflows/android-voice-confirm.yml'
@@ -89,7 +89,7 @@ jobs:
       - name: Upload diagnostic debug APK for review only
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: SYNTH_SHAI_Confirmed_Fixed_Reply_${{ github.sha }}
+          name: SYNTH_SHAI_Reviewed_Qwen_Voice_${{ github.sha }}
           path: deliverables/android-diagnostics/
           if-no-files-found: error
           retention-days: 7
