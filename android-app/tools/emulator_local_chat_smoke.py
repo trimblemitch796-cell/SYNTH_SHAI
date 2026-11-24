@@ -19,7 +19,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-APP = "org.tuuwanasavi.synthshai.localchat.diagnostics"
+APP = "org.tuuwanasavi.synthshai.localchat.sourcereader"
 ACTIVITY = APP + "/org.tuuwanasavi.synthshai.MainActivity"
 SIZE = 491400032
 SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
@@ -293,6 +293,14 @@ def main():
     assert field(root).get("enabled") == "false", "Input enabled without a model"
     assert control(root, "Select GGUF").get("enabled") == "true", "Model picker unavailable"
     print("UI PASS: real no-model screen and disabled Send/input", flush=True)
+    tap(control(root, "Read my code: OFF"))
+    root = wait_ui(lambda r: has_text(r, "Read my code: ON"), "source mode enabled")
+    tap(control(root, "Choose section"))
+    root = wait_ui(lambda r: has_text(r, "Use section"), "bundled source preview opened")
+    assert any("package org.tuuwanasavi.synthshai" in label(n) for n in nodes(root)), "Actual source absent"
+    tap(control(root, "Use section"))
+    tap(control(hierarchy(), "Read my code: ON"))
+    wait_ui(lambda r: has_text(r, "Read my code: OFF"), "source mode disabled before ordinary chat")
     adb("shell", "am", "force-stop", APP)
     private_command(f"mkdir -p no_backup/verified-model shared_prefs; cat > {PRIVATE_MODEL}", input_file=args.model)
     actual = adb("shell", "run-as", APP, "sha256sum", PRIVATE_MODEL).split()[0]
