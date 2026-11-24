@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal object LocalEngine {
     init { System.loadLibrary("shai_local") }
+    external fun releaseModel()
     external fun generate(modelPath: String, input: ByteArray, stop: AtomicBoolean): ByteArray
 }
 
