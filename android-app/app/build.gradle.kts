@@ -20,7 +20,7 @@ android {
         targetSdk = 35
         versionCode = 12
         versionName = "0.3.6-warm-model"
-        applicationIdSuffix = ".localchat.sourcereader"
+        applicationIdSuffix = ".localchat.warmmodel036"
         ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
     }

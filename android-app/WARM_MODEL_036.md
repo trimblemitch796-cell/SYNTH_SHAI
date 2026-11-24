@@ -10,4 +10,4 @@ Validation: local C++ cache checks cover reuse, replacing a key without simultan
 
 Phone comparison: record the same short question twice while staying in the app, then leave and return and repeat it. Compare the displayed phase timings, not just subjective responsiveness. Check Stop, backgrounding during generation and reopening. A slower second response can still occur from prompt length, thermal throttling or OS memory pressure.
 
-Version 12 / 0.3.6-warm-model keeps the source-reader package. CI debug signing may differ between runs; do not uninstall an existing app to resolve a signature error without first preserving any chats you need.
+Version 12 / 0.3.6-warm-model installs separately as SHAI 0.3.6 Speed Test (package suffix .localchat.warmmodel036). Existing source-reader installation and chats remain separate. Select the GGUF again. Compare identical questions in both apps; each keeps its own private model copy.
