@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +33,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -86,6 +90,16 @@ private fun ShaiOfflineScreen() {
         restored.forEachIndexed { i, line -> add(ChatLine(i + 1, line.content, line.fromHuman)) }
     } }
     var model by remember { mutableStateOf(prefs.getString("uri", null)?.let(Uri::parse)) }
+    var sourceMode by remember { mutableStateOf(false) }
+    var sourceIndex by remember { mutableStateOf(0) }
+    var sourcePage by remember { mutableStateOf(0) }
+    var sourcePreview by remember { mutableStateOf(false) }
+    fun readSource(): String {
+        val name = SourceReader.files[sourceIndex]
+        val bytes = context.assets.open("source_reader/$name").use { it.readBytes() }
+        val hash = context.assets.open("source_reader/$name.sha256").bufferedReader().use { it.readText() }
+        return SourceReader.verify(name, bytes, hash)
+    }
     val ready = model != null
     var status by remember { mutableStateOf(previousGenerationExit(context, prefs) ?: if (ready) "Model ready" else "Select the Qwen2.5-0.5B-Instruct Q4_K_M file") }
     var busy by remember { mutableStateOf(false) }
@@ -143,7 +157,15 @@ private fun ShaiOfflineScreen() {
         if (typed.isEmpty() || busy || !ready) return
         if (typed.length > 16384) { status = "Message is too long. Shorten it before generating."; return }
         val selected = model ?: return
-        val prompt = buildString {
+        val sourceLabel = if (sourceMode) "${SourceReader.files[sourceIndex]} section ${sourcePage + 1}" else null
+        val prompt = if (sourceMode) {
+            try {
+                SourceReader.prompt(SourceReader.files[sourceIndex], sourcePage, readSource(), typed)
+            } catch (e: Exception) {
+                status = e.message ?: "Source unavailable; no answer generated."
+                return
+            }
+        } else buildString {
             append("<|im_start|>system\nYou are SHAI, a helpful offline text companion.<|im_end|>\n")
             fun turn(role: String, text: String) {
                 append("<|im_start|>").append(role).append('\n')
@@ -166,8 +188,8 @@ private fun ShaiOfflineScreen() {
             }
             if (!stop.get()) {
                 check(response.isNotEmpty()) { "The model returned no text." }
-                messages.add(ChatLine(nextId++, typed, true))
-                messages.add(ChatLine(nextId++, response, false))
+                messages.add(ChatLine(nextId++, if (sourceLabel == null) typed else "[Source: $sourceLabel] $typed", true))
+                messages.add(ChatLine(nextId++, if (sourceLabel == null) response else "[Generated explanation of $sourceLabel; check against source]\n$response", false))
                 while (messages.size > maxChatLines) messages.removeAt(0)
                 draft = ""
                 val saved = ChatHistoryCodec.encode(messages.map { StoredChatLine(it.fromHuman, it.content) })
@@ -213,6 +235,36 @@ private fun ShaiOfflineScreen() {
                 if (!busy) Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Select GGUF") }
                 if (busy) Button(onClick = { stop.set(true) }) { Text("Stop") }
                 if (!busy && messages.isNotEmpty()) Button(onClick = { messages.clear(); draft = ""; prefs.edit().remove("chat_history").remove("chat_draft").commit(); status = "Chat cleared" }) { Text("Clear chat") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(enabled = !busy, onClick = { sourceMode = !sourceMode }) {
+                    Text(if (sourceMode) "Read my code: ON" else "Read my code: OFF")
+                }
+                if (sourceMode) TextButton(enabled = !busy, onClick = {
+                    try { readSource(); sourcePreview = true }
+                    catch (e: Exception) { status = "Source unavailable; no answer generated." }
+                }) { Text("Choose section") }
+            }
+            if (sourceMode) Text(
+                "${SourceReader.files[sourceIndex]} · section ${sourcePage + 1} · read-only · question ≤300 characters. Previous chat is excluded.",
+                style = MaterialTheme.typography.labelSmall
+            )
+            if (sourcePreview) {
+                val source = runCatching { readSource() }.getOrDefault("")
+                val pages = SourceReader.pages(source)
+                AlertDialog(
+                    onDismissRequest = { sourcePreview = false },
+                    title = { Text("${SourceReader.files[sourceIndex]} ${sourcePage + 1}/${pages.size}") },
+                    text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(pages.getOrElse(sourcePage) { "Source unavailable" }, style = MaterialTheme.typography.bodySmall)
+                        Row {
+                            TextButton(onClick = { sourceIndex = (sourceIndex + 1) % SourceReader.files.size; sourcePage = 0 }) { Text("Next file") }
+                            TextButton(enabled = sourcePage > 0, onClick = { sourcePage-- }) { Text("Back") }
+                            TextButton(enabled = sourcePage + 1 < pages.size, onClick = { sourcePage++ }) { Text("Next") }
+                        }
+                    } },
+                    confirmButton = { TextButton(onClick = { sourcePreview = false }) { Text("Use section") } }
+                )
             }
             LazyColumn(
                 state = listState,

@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,9 +18,9 @@ android {
         applicationId = "org.tuuwanasavi.synthshai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.3.4-screen-state"
-        applicationIdSuffix = ".localchat.diagnostics"
+        versionCode = 11
+        versionName = "0.3.5-source-reader"
+        applicationIdSuffix = ".localchat.sourcereader"
         ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
     }
@@ -56,3 +58,32 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     testImplementation("junit:junit:4.13.2")
 }
+
+// Bundle exact source inputs at build time; never include private device files.
+val sourceInputs = listOf(
+    "src/main/java/org/tuuwanasavi/synthshai/LocalEngine.kt",
+    "src/main/java/org/tuuwanasavi/synthshai/ChatHistoryCodec.kt",
+    "src/main/java/org/tuuwanasavi/synthshai/MainActivity.kt",
+    "src/main/cpp/chat.cpp"
+)
+val sourceAssets = layout.buildDirectory.dir("generated/sourceReaderAssets")
+val bundleReadOnlySource by tasks.registering {
+    inputs.files(sourceInputs.map { file(it) })
+    outputs.dir(sourceAssets)
+    doLast {
+        val target = sourceAssets.get().dir("source_reader").asFile
+        target.deleteRecursively()
+        target.mkdirs()
+        sourceInputs.forEach { path ->
+            val input = file(path)
+            val bytes = input.readBytes()
+            require(bytes.size <= 65536)
+            target.resolve(input.name).writeBytes(bytes)
+            val hash = MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it) }
+            target.resolve(input.name + ".sha256").writeText(hash)
+        }
+    }
+}
+android.sourceSets.getByName("main").assets.srcDir(sourceAssets)
+tasks.named("preBuild").configure { dependsOn(bundleReadOnlySource) }
