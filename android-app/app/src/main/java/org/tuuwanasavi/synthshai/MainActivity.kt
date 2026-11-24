@@ -65,6 +65,19 @@ private const val maxChatLines = 120
 private data class ChatLine(val id: Int, val content: String, val fromHuman: Boolean)
 
 class MainActivity : ComponentActivity() {
+    private val generationStop = AtomicBoolean(false)
+    override fun onStop() {
+        generationStop.set(true)
+        // Native release is nonblocking; an active call frees weights after its context.
+        try { LocalEngine.releaseModel() } catch (_: LinkageError) { }
+        super.onStop()
+    }
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            try { LocalEngine.releaseModel() } catch (_: LinkageError) { }
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -74,14 +87,14 @@ class MainActivity : ComponentActivity() {
                     onSurfaceVariant = secondaryText
                 )
             ) {
-                ShaiOfflineScreen()
+                ShaiOfflineScreen(generationStop)
             }
         }
     }
 }
 
 @Composable
-private fun ShaiOfflineScreen() {
+private fun ShaiOfflineScreen(stop: AtomicBoolean) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("local_model", 0) }
     val restored = remember { ChatHistoryCodec.decode(prefs.getString("chat_history", null)) }
@@ -103,7 +116,7 @@ private fun ShaiOfflineScreen() {
     val ready = model != null
     var status by remember { mutableStateOf(previousGenerationExit(context, prefs) ?: if (ready) "Model ready" else "Select the Qwen2.5-0.5B-Instruct Q4_K_M file") }
     var busy by remember { mutableStateOf(false) }
-    val stop = remember { AtomicBoolean(false) }
+    var lastTiming by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     DisposableEffect(Unit) { onDispose { stop.set(true) } }
     var draft by remember { mutableStateOf(prefs.getString("chat_draft", "").orEmpty().take(1000)) }
@@ -181,12 +194,17 @@ private fun ShaiOfflineScreen() {
             prefs.edit().putLong("generation_started", System.currentTimeMillis())
                 .putInt("generation_pid", android.os.Process.myPid()).commit()
             try {
+            val started = android.os.SystemClock.elapsedRealtime()
+            var verifiedAt = started
             val response = withContext(Dispatchers.Default) {
                 withVerifiedModel(context, selected, stop) { modelPath ->
+                    verifiedAt = android.os.SystemClock.elapsedRealtime()
                     LocalEngine.generate(modelPath, prompt.encodeToByteArray(), stop).decodeToString().trim()
                 }
             }
             if (!stop.get()) {
+                val ended = android.os.SystemClock.elapsedRealtime()
+                lastTiming = "Last reply: ${(ended - started) / 1000}s · model check ${(verifiedAt - started) / 1000}s · inference ${(ended - verifiedAt) / 1000}s"
                 check(response.isNotEmpty()) { "The model returned no text." }
                 messages.add(ChatLine(nextId++, if (sourceLabel == null) typed else "[Source: $sourceLabel] $typed", true))
                 messages.add(ChatLine(nextId++, if (sourceLabel == null) response else "[Generated explanation of $sourceLabel; check against source]\n$response", false))
@@ -231,6 +249,7 @@ private fun ShaiOfflineScreen() {
                 style = MaterialTheme.typography.bodySmall,
                 color = secondaryText
             )
+            if (lastTiming.isNotEmpty()) Text(lastTiming, style = MaterialTheme.typography.labelSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!busy) Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Select GGUF") }
                 if (busy) Button(onClick = { stop.set(true) }) { Text("Stop") }

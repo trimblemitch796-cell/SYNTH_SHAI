@@ -70,6 +70,12 @@ jobs:
             android-app/native-tests/model_file_preflight_test.cpp \
             -o /tmp/shai-model-file-preflight-test
           /tmp/shai-model-file-preflight-test
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+            -Iandroid-app/app/src/main/cpp \
+            android-app/native-tests/single_model_cache_test.cpp \
+            -o /tmp/shai-single-model-cache-test
+          /tmp/shai-single-model-cache-test
 
       - name: Build Android debug APK and unit tests
         working-directory: android-app

@@ -18,8 +18,8 @@ android {
         applicationId = "org.tuuwanasavi.synthshai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.3.5-source-reader"
+        versionCode = 12
+        versionName = "0.3.6-warm-model"
         applicationIdSuffix = ".localchat.sourcereader"
         ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
