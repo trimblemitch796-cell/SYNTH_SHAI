@@ -1,0 +1,53 @@
+name: Android finance mock lab (144 HOLD)
+on:
+  push:
+    branches: [research/android-finance-mock-v01]
+    paths: ['android-finance-lab/**', '.github/workflows/android-finance-mock.yml']
+  pull_request:
+    paths: ['android-finance-lab/**', '.github/workflows/android-finance-mock.yml']
+permissions:
+  contents: read
+jobs:
+  mock-apks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Test simulation gate
+        run: |
+          mkdir -p /tmp/finance-tests
+          javac -d /tmp/finance-tests android-finance-lab/bank/src/main/java/org/tuuwanasavi/financelab/PaymentGate.java android-finance-lab/tests/GateTest.java
+          java -cp /tmp/finance-tests GateTest
+      - name: Prepare Android SDK
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c
+        with:
+          gradle-version: '8.9'
+      - name: Compile isolated mock apps
+        working-directory: android-finance-lab
+        run: gradle --no-daemon :bank:assembleDebug :assistant:assembleDebug
+      - name: Verify permissions and package APKs
+        run: |
+          set -eu
+          mkdir deliverables
+          cp android-finance-lab/bank/build/outputs/apk/debug/bank-debug.apk deliverables/SHAI-Mock-Bank-v01.apk
+          cp android-finance-lab/assistant/build/outputs/apk/debug/assistant-debug.apk deliverables/SHAI-Demo-Helper-v01.apk
+          for apk in deliverables/*.apk; do
+            if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$apk" | grep -E 'android.permission.(INTERNET|CAMERA|RECORD_AUDIO|READ_SMS|READ_CONTACTS)'; then
+              echo 'Unexpected sensitive permission'; exit 1
+            fi
+          done
+          cp android-finance-lab/README.md deliverables/README.md
+          printf 'Source: %s\nMock only. No Up/MetaMask access. Device interaction not yet verified.\n' "$GITHUB_SHA" > deliverables/BUILD_INFO.txt
+          cd deliverables
+          sha256sum *.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: SHAI-Finance-Mock-Lab-${{ github.sha }}
+          path: deliverables/
+          retention-days: 14
+          if-no-files-found: error
