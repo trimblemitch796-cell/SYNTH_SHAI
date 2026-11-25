@@ -18,8 +18,8 @@ android {
         applicationId = "org.tuuwanasavi.synthshai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.3.7-optimized"
+        versionCode = 14
+        versionName = "0.3.8-repetition-repair"
         applicationIdSuffix = ".localchat.optimized037"
         ndk { abiFilters += shaiAbi }
         externalNativeBuild { cmake { arguments += "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }

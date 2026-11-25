@@ -212,7 +212,7 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
             }
             if (!stop.get()) {
                 val ended = android.os.SystemClock.elapsedRealtime()
-                lastTiming = "Last reply: ${(ended - started) / 1000}s · check ${(verifiedAt - started)}ms · load ${response.loadMs}ms (${if (response.reused) "reused" else "cold"}) · setup ${response.setupMs}ms · prompt ${response.promptMs}ms · answer ${response.decodeMs}ms · tokens ${response.inputTokens}/${response.outputTokens}"
+                lastTiming = "Last chunk (not whole reply): ${(ended - started) / 1000}s · check ${(verifiedAt - started)}ms · load ${response.loadMs}ms (${if (response.reused) "reused" else "cold"}) · setup ${response.setupMs}ms · prompt ${response.promptMs}ms · answer ${response.decodeMs}ms · tokens ${response.inputTokens}/${response.outputTokens}"
                 check(response.text.isNotBlank() || (prior != null && response.reason == "end")) { "The model returned no text." }
                 val combined = (prior?.text.orEmpty() + response.text)
                 val display = if (sourceLabel == null) combined.trim() else "[Generated explanation of $sourceLabel; check against source]\n${combined.trim()}"
@@ -224,7 +224,9 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
                     messages[messages.lastIndex] = ChatLine(nextId++, display, false)
                 }
                 val chunks = (prior?.chunks ?: 0) + 1
-                if (response.reason == "limit") {
+                if (ReplyRepetition.detected(combined)) {
+                    finishNotice = "Repeated text detected. Continuation paused; ask a focused new question. Answer retained for review."
+                } else if (response.reason == "limit") {
                     finishNotice = if (chunks < 3) "Reply reached its length limit. Continue uses the same question and source." else "Continuation limit reached. Ask a shorter question."
                     if (chunks < 3) continuation = ContinuedAnswer(prior?.prompt ?: prompt, sourceLabel, combined, chunks)
                 }
