@@ -81,6 +81,9 @@ jobs:
         working-directory: android-app
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
 
+      - name: Verify effective inference optimization
+        run: python3 android-app/tools/check_native_optimization.py
+
       - name: Package diagnostic APK and source evidence
         env:
           SOURCE_SHA: ${{ github.sha }}
@@ -88,6 +91,7 @@ jobs:
           set -eu
           mkdir -p deliverables/android-diagnostics
           cp android-app/app/build/outputs/apk/debug/app-debug.apk deliverables/android-diagnostics/
+          find android-app/app/.cxx -name compile_commands.json -exec cp {} deliverables/android-diagnostics/compile_commands.json \;
           printf 'Source commit: %s\nResearch diagnostic build; 144 HOLD. Not device-verified.\n' "$SOURCE_SHA" > deliverables/android-diagnostics/BUILD_INFO.txt
           cd deliverables/android-diagnostics
           sha256sum app-debug.apk > SHA256SUMS.txt
