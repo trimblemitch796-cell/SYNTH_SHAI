@@ -1,0 +1,8 @@
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+ android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+ android:packageNames="org.tuuwanasavi.financelab.bank"
+ android:accessibilityFeedbackType="feedbackGeneric"
+ android:notificationTimeout="100"
+ android:canRetrieveWindowContent="true"
+ android:accessibilityFlags="flagReportViewIds"
+ android:isAccessibilityTool="false"/>
