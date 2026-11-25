@@ -1,0 +1,1 @@
+<resources><item name="screen" type="id"/><item name="recipient" type="id"/><item name="amount" type="id"/><item name="prepare" type="id"/><item name="status" type="id"/><item name="review" type="id"/><item name="submit" type="id"/></resources>
