@@ -26,4 +26,16 @@ class GenerationResultTest {
     @Test fun continuationIsBounded() {
         assertThrows(IllegalArgumentException::class.java) { ContinuedAnswer("p", null, "x", 3).nextPrompt() }
     }
+    @Test fun detectsPhoneStyleLoopAcrossChunks() {
+        val phrase = "It also reads the source file again, parses it again, and stores the messages in a list. "
+        assertTrue(ReplyRepetition.detected("This code reads assets. " + phrase.repeat(3) + "It also reads"))
+        assertTrue(ReplyRepetition.detected(phrase + phrase.uppercase() + phrase))
+    }
+    @Test fun preservesOrdinaryAnswersAndTwoLegitimateMentions() {
+        val phrase = "It reads the source file and stores messages in a list. "
+        assertFalse(ReplyRepetition.detected(""))
+        assertFalse(ReplyRepetition.detected(phrase.repeat(2)))
+        assertFalse(ReplyRepetition.detected("1. Read source. 2. Read source. 3. Read source."))
+        assertFalse(ReplyRepetition.detected("Read the source file. Verify its checksum. Explain the selected section."))
+    }
 }

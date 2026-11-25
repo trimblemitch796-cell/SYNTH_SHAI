@@ -27,3 +27,20 @@ internal data class ContinuedAnswer(val prompt: String, val label: String?, val 
         return prompt + text.replace("<|", "< |")
     }
 }
+
+/** Conservative output check, not a factual or safety validator. Keeps original text visible. */
+internal object ReplyRepetition {
+    fun detected(text: String): Boolean {
+        val words = Regex("[\\p{L}\\p{N}_]+").findAll(text.lowercase()).map { it.value }.toList()
+        // Three consecutive copies of a substantial phrase, anywhere in the accumulated answer.
+        for (width in 8..minOf(80, words.size / 3)) {
+            for (start in 0..words.size - width * 3) {
+                if ((0 until width).all { offset ->
+                    words[start + offset] == words[start + width + offset] &&
+                        words[start + offset] == words[start + 2 * width + offset]
+                }) return true
+            }
+        }
+        return false
+    }
+}
