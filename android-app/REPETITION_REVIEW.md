@@ -13,3 +13,9 @@ Validation: targeted JVM tests cover native-result parsing, continuation bounds 
 Phone check: repeat the MainActivity colour/source-reading prompts; when a phrase repeats three times, the repetition notice should appear and Continue reply should be unavailable. A fresh focused question should still work. Compare a normal length-limited response: it should still offer continuation below the existing three-chunk cap. Review original text before judging any suggested code change.
 
 144 HOLD retained. Draft research patch; no merge or installation performed.
+
+## Requested in-place update
+
+Version 0.3.8-repetition-repair (code 14) retains the 0.3.7 package identity `org.tuuwanasavi.synthshai.localchat.optimized037`. It is intended to preserve private chats, model storage and preferences when installed as a valid Android update. The installed phone package has not been independently confirmed.
+
+BLOCKED: existing CI generates fresh debug signing credentials on each runner. No stable signing configuration or recovery mechanism is present in the inspected source. A successful build does not establish compatibility with the installed APK. The original signing private key must be recovered from its original build environment or a previously secured backup; the public certificate/APK alone cannot supply it. Do not uninstall or clear storage to work around a signature mismatch. A future signing setup alone cannot make a new key update an old installation.
