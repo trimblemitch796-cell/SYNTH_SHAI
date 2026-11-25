@@ -3,6 +3,8 @@ project(shai_local LANGUAGES C CXX)
 # Optimise inference even in the installable debug research APK; retain symbols.
 set(CMAKE_C_FLAGS_DEBUG "-O3 -g" CACHE STRING "Optimised native debug C" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g" CACHE STRING "Optimised native debug C++" FORCE)
+# Apply to this directory and fetched inference targets regardless of Gradle build type.
+add_compile_options(-O3)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
