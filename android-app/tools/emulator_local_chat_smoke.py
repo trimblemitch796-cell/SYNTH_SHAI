@@ -19,7 +19,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-APP = "org.tuuwanasavi.synthshai.localchat.warmmodel036"
+APP = "org.tuuwanasavi.synthshai.localchat.optimized037"
 ACTIVITY = APP + "/org.tuuwanasavi.synthshai.MainActivity"
 SIZE = 491400032
 SHA256 = "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"

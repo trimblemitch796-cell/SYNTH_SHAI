@@ -117,6 +117,8 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
     var status by remember { mutableStateOf(previousGenerationExit(context, prefs) ?: if (ready) "Model ready" else "Select the Qwen2.5-0.5B-Instruct Q4_K_M file") }
     var busy by remember { mutableStateOf(false) }
     var lastTiming by remember { mutableStateOf("") }
+    var finishNotice by remember { mutableStateOf("") }
+    var continuation by remember { mutableStateOf<ContinuedAnswer?>(null) }
     val scope = rememberCoroutineScope()
     DisposableEffect(Unit) { onDispose { stop.set(true) } }
     var draft by remember { mutableStateOf(prefs.getString("chat_draft", "").orEmpty().take(1000)) }
@@ -142,7 +144,7 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
             } catch (e: OutOfMemoryError) {
                 status = "The app ran out of memory. Close other apps and try a shorter message."
             } catch (e: Exception) {
-                status = e.localizedMessage ?: "Local operation failed"
+                status = if (stop.get()) "Stopped" else e.localizedMessage ?: "Local operation failed"
             } catch (e: LinkageError) {
                 status = "The native runtime could not load on this device."
             } finally {
@@ -152,6 +154,8 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runWork("Preparing private model copy…") {
+            continuation = null
+            finishNotice = ""
             withContext(Dispatchers.IO) {
                 withVerifiedModel(context, uri, stop) { }
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -165,13 +169,15 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
         }
     }
 
-    fun sendMessage() {
-        val typed = draft.trim()
+    fun sendMessage(resume: Boolean = false) {
+        val prior = if (resume) continuation else null
+        if (resume && (prior == null || draft.isNotBlank())) return
+        val typed = if (resume) "Continue" else draft.trim()
         if (typed.isEmpty() || busy || !ready) return
         if (typed.length > 16384) { status = "Message is too long. Shorten it before generating."; return }
         val selected = model ?: return
-        val sourceLabel = if (sourceMode) "${SourceReader.files[sourceIndex]} section ${sourcePage + 1}" else null
-        val prompt = if (sourceMode) {
+        val sourceLabel = if (prior != null) prior.label else if (sourceMode) "${SourceReader.files[sourceIndex]} section ${sourcePage + 1}" else null
+        val prompt = if (prior != null) prior.nextPrompt() else if (sourceMode) {
             try {
                 SourceReader.prompt(SourceReader.files[sourceIndex], sourcePage, readSource(), typed)
             } catch (e: Exception) {
@@ -179,7 +185,7 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
                 return
             }
         } else buildString {
-            append("<|im_start|>system\nYou are SHAI, a helpful offline text companion.<|im_end|>\n")
+            append("<|im_start|>system\nYou are SHAI, a helpful offline text companion. Answer briefly in complete sentences.<|im_end|>\n")
             fun turn(role: String, text: String) {
                 append("<|im_start|>").append(role).append('\n')
                 append(text.replace("<|", "< |")).append("<|im_end|>\n")
@@ -190,6 +196,8 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
             append("<|im_start|>assistant\n")
         }
         if (prompt.length > 32768) { status = "Conversation is too long. Clear chat or shorten the message."; return }
+        continuation = null
+        finishNotice = ""
         runWork("Generating on this phone…") {
             prefs.edit().putLong("generation_started", System.currentTimeMillis())
                 .putInt("generation_pid", android.os.Process.myPid()).commit()
@@ -199,15 +207,27 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
             val response = withContext(Dispatchers.Default) {
                 withVerifiedModel(context, selected, stop) { modelPath ->
                     verifiedAt = android.os.SystemClock.elapsedRealtime()
-                    LocalEngine.generate(modelPath, prompt.encodeToByteArray(), stop).decodeToString().trim()
+                    GenerationResult.parse(LocalEngine.generate(modelPath, prompt.encodeToByteArray(), stop))
                 }
             }
             if (!stop.get()) {
                 val ended = android.os.SystemClock.elapsedRealtime()
-                lastTiming = "Last reply: ${(ended - started) / 1000}s · model check ${(verifiedAt - started) / 1000}s · inference ${(ended - verifiedAt) / 1000}s"
-                check(response.isNotEmpty()) { "The model returned no text." }
-                messages.add(ChatLine(nextId++, if (sourceLabel == null) typed else "[Source: $sourceLabel] $typed", true))
-                messages.add(ChatLine(nextId++, if (sourceLabel == null) response else "[Generated explanation of $sourceLabel; check against source]\n$response", false))
+                lastTiming = "Last reply: ${(ended - started) / 1000}s · check ${(verifiedAt - started)}ms · load ${response.loadMs}ms (${if (response.reused) "reused" else "cold"}) · setup ${response.setupMs}ms · prompt ${response.promptMs}ms · answer ${response.decodeMs}ms · tokens ${response.inputTokens}/${response.outputTokens}"
+                check(response.text.isNotBlank() || (prior != null && response.reason == "end")) { "The model returned no text." }
+                val combined = (prior?.text.orEmpty() + response.text)
+                val display = if (sourceLabel == null) combined.trim() else "[Generated explanation of $sourceLabel; check against source]\n${combined.trim()}"
+                if (prior == null) {
+                    messages.add(ChatLine(nextId++, if (sourceLabel == null) typed else "[Source: $sourceLabel] $typed", true))
+                    messages.add(ChatLine(nextId++, display, false))
+                } else {
+                    check(messages.isNotEmpty() && !messages.last().fromHuman)
+                    messages[messages.lastIndex] = ChatLine(nextId++, display, false)
+                }
+                val chunks = (prior?.chunks ?: 0) + 1
+                if (response.reason == "limit") {
+                    finishNotice = if (chunks < 3) "Reply reached its length limit. Continue uses the same question and source." else "Continuation limit reached. Ask a shorter question."
+                    if (chunks < 3) continuation = ContinuedAnswer(prior?.prompt ?: prompt, sourceLabel, combined, chunks)
+                }
                 while (messages.size > maxChatLines) messages.removeAt(0)
                 draft = ""
                 val saved = ChatHistoryCodec.encode(messages.map { StoredChatLine(it.fromHuman, it.content) })
@@ -250,13 +270,15 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
                 color = secondaryText
             )
             if (lastTiming.isNotEmpty()) Text(lastTiming, style = MaterialTheme.typography.labelSmall)
+            if (finishNotice.isNotEmpty()) Text(finishNotice, style = MaterialTheme.typography.labelSmall)
+            if (continuation != null) TextButton(enabled = !busy && draft.isBlank(), onClick = { sendMessage(true) }) { Text("Continue reply") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!busy) Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Select GGUF") }
                 if (busy) Button(onClick = { stop.set(true) }) { Text("Stop") }
-                if (!busy && messages.isNotEmpty()) Button(onClick = { messages.clear(); draft = ""; prefs.edit().remove("chat_history").remove("chat_draft").commit(); status = "Chat cleared" }) { Text("Clear chat") }
+                if (!busy && messages.isNotEmpty()) Button(onClick = { continuation = null; finishNotice = ""; messages.clear(); draft = ""; prefs.edit().remove("chat_history").remove("chat_draft").commit(); status = "Chat cleared" }) { Text("Clear chat") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(enabled = !busy, onClick = { sourceMode = !sourceMode }) {
+                TextButton(enabled = !busy, onClick = { continuation = null; finishNotice = ""; sourceMode = !sourceMode }) {
                     Text(if (sourceMode) "Read my code: ON" else "Read my code: OFF")
                 }
                 if (sourceMode) TextButton(enabled = !busy, onClick = {
@@ -277,9 +299,9 @@ private fun ShaiOfflineScreen(stop: AtomicBoolean) {
                     text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text(pages.getOrElse(sourcePage) { "Source unavailable" }, style = MaterialTheme.typography.bodySmall)
                         Row {
-                            TextButton(onClick = { sourceIndex = (sourceIndex + 1) % SourceReader.files.size; sourcePage = 0 }) { Text("Next file") }
-                            TextButton(enabled = sourcePage > 0, onClick = { sourcePage-- }) { Text("Back") }
-                            TextButton(enabled = sourcePage + 1 < pages.size, onClick = { sourcePage++ }) { Text("Next") }
+                            TextButton(onClick = { continuation = null; finishNotice = ""; sourceIndex = (sourceIndex + 1) % SourceReader.files.size; sourcePage = 0 }) { Text("Next file") }
+                            TextButton(enabled = sourcePage > 0, onClick = { continuation = null; finishNotice = ""; sourcePage-- }) { Text("Back") }
+                            TextButton(enabled = sourcePage + 1 < pages.size, onClick = { continuation = null; finishNotice = ""; sourcePage++ }) { Text("Next") }
                         }
                     } },
                     confirmButton = { TextButton(onClick = { sourcePreview = false }) { Text("Use section") } }

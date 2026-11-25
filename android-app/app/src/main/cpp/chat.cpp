@@ -4,6 +4,7 @@
 #include "ModelFilePreflight.h"
 #include "SingleModelCache.h"
 #include <atomic>
+#include <chrono>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -85,10 +86,16 @@ Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
     mp.n_gpu_layers = 0;
     const auto file_error = shai::model_path_preflight(path);
     if (!file_error.empty()) { fail(env, file_error.c_str()); return nullptr; }
+    using Clock = std::chrono::steady_clock;
+    auto milliseconds = [](Clock::time_point a, Clock::time_point b) {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count();
+    };
+    const auto load_start = Clock::now();
+    bool cache_hit = true;
     llama_model* model = nullptr;
     {
         shai::LoadDiagnosticScope capture(load_diagnostics);
-        model = model_cache.get(path, [&] { return llama_model_load_from_file(path.c_str(), mp); });
+        model = model_cache.get(path, [&] { cache_hit = false; return llama_model_load_from_file(path.c_str(), mp); });
         if (!model) {
             const auto report = load_diagnostics.finish("Model loading");
             std::string safe_report(report.data());
@@ -100,6 +107,7 @@ Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
             return nullptr;
         }
     }
+    const auto load_end = Clock::now();
     auto vocab = llama_model_get_vocab(model);
     std::vector<llama_token> tokens(928);
     auto count = llama_tokenize(vocab, prompt.data(), prompt.size(), tokens.data(), tokens.size(), false, true);
@@ -124,25 +132,38 @@ Java_org_tuuwanasavi_synthshai_LocalEngine_generate(
             return nullptr;
         }
     }
+    const auto setup_end = Clock::now();
     // Capture is disabled before processing any conversation text.
     for (int offset = 0; offset < count && !stopped(); offset += 128) {
         if (llama_decode(ctx.get(), llama_batch_get_one(tokens.data()+offset, std::min(128, count-offset)))) {
             fail(env, "Prompt processing failed."); return nullptr;
         }
     }
+    const auto prefill_end = Clock::now();
     std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(), llama_sampler_free);
     if (!sampler) { fail(env, "Text sampler could not be allocated."); return nullptr; }
     std::string out;
+    std::string reason = "limit";
+    int output_tokens = 0;
     for (int i = 0; i < 96 && !stopped(); ++i) {
         auto token = llama_sampler_sample(sampler.get(), ctx.get(), -1);
-        if (llama_vocab_is_eog(vocab, token)) break;
+        if (llama_vocab_is_eog(vocab, token)) { reason = "end"; break; }
         char piece[512];
         int size = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, false);
         if (size < 0 || llama_decode(ctx.get(), llama_batch_get_one(&token, 1))) {
             fail(env, "Text generation failed."); return nullptr;
         }
         out.append(piece, size);
+        ++output_tokens;
     }
+    const auto decode_end = Clock::now();
+    if (stopped()) reason = "stopped";
+    out = "SHAI1|" + reason + "|" + std::to_string(milliseconds(load_start, load_end)) +
+        "|" + std::to_string(milliseconds(load_end, setup_end)) +
+        "|" + std::to_string(milliseconds(setup_end, prefill_end)) +
+        "|" + std::to_string(milliseconds(prefill_end, decode_end)) +
+        "|" + std::to_string(count) + "|" + std::to_string(output_tokens) +
+        "|" + (cache_hit ? "1" : "0") + "\n" + out;
     auto bytes = env->NewByteArray(out.size());
     if (bytes) env->SetByteArrayRegion(bytes, 0, out.size(), reinterpret_cast<const jbyte *>(out.data()));
     return bytes;

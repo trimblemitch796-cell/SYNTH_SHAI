@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(shai_local LANGUAGES C CXX)
+# Optimise inference even in the installable debug research APK; retain symbols.
+set(CMAKE_C_FLAGS_DEBUG "-O3 -g" CACHE STRING "Optimised native debug C" FORCE)
+set(CMAKE_CXX_FLAGS_DEBUG "-O3 -g" CACHE STRING "Optimised native debug C++" FORCE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include(FetchContent)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
