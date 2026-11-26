@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReviewedTurnTest {
+ @Test fun continuationRevokesOldReplyAndNeedsFreshApproval() {
+  val t=ReviewedTurn();t.offer(1,"question");t.confirm(1,"question");t.generated(1,"first")
+  assertFalse(t.continueReply(2))
+  assertTrue(t.continueReply(1));assertNull(t.reply);assertNull(t.approve(1))
+  assertFalse(t.continueReply(1))
+  assertTrue(t.generated(1,"first plus next"));assertEquals("first plus next",t.approve(1))
+  assertFalse(t.continueReply(1));assertNull(t.approve(1))
+ }
+ @Test fun stoppingContinuationRejectsLateOutput() {
+  val t=ReviewedTurn();t.offer(1,"question");t.confirm(1,"question");t.generated(1,"first")
+  t.continueReply(1);t.clear()
+  assertFalse(t.generated(1,"late"));assertNull(t.approve(1));assertFalse(t.continueReply(1))
+ }
  @Test fun requiresBothReviewsAndSpeaksExactOutputOnce() {
   val t=ReviewedTurn()
   assertNull(t.approve(1))

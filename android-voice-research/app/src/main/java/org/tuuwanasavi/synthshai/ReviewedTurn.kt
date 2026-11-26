@@ -25,6 +25,12 @@ class ReviewedTurn {
         reply = text; phase = Phase.REPLY
         return true
     }
+    fun continueReply(t: Long): Boolean {
+        if (!canSpeak(t)) return false
+        reply = null
+        phase = Phase.GENERATING
+        return true
+    }
     fun canSpeak(t: Long) = token == t && phase == Phase.REPLY
     fun approve(t: Long): String? {
         if (!canSpeak(t)) return null

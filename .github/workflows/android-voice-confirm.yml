@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/voice-reviewed-qwen-09
+      - research/voice-reviewed-qwen-091
     paths:
       - 'android-voice-research/**'
       - '.github/workflows/android-voice-confirm.yml'
@@ -70,9 +71,32 @@ jobs:
             -o /tmp/shai-model-file-preflight-test
           /tmp/shai-model-file-preflight-test
 
+      - name: Test model cache lifetime with sanitizers
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -g \
+            -Iandroid-voice-research/app/src/main/cpp \
+            android-voice-research/native-tests/single_model_cache_test.cpp -o /tmp/cache-test
+          /tmp/cache-test
+
       - name: Build Android debug APK and unit tests
         working-directory: android-voice-research
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+
+      - name: Verify optimized native compile commands
+        run: |
+          python3 - <<'PYCODE'
+          import json, pathlib, shlex
+          files = list(pathlib.Path('android-voice-research/app/.cxx').rglob('compile_commands.json'))
+          assert files, 'Missing native compilation evidence'
+          count = 0
+          for file in files:
+              for row in json.loads(file.read_text()):
+                  args = row.get('arguments') or shlex.split(row['command'])
+                  flags = [a for a in args if a.startswith('-O')]
+                  assert flags and flags[-1] in ('-O2', '-O3'), (row['file'], flags)
+                  count += 1
+          print('Verified optimized native commands:', count)
+          PYCODE
 
       - name: Package diagnostic APK and source evidence
         env:
@@ -82,6 +106,7 @@ jobs:
           mkdir -p deliverables/android-diagnostics
           cp android-voice-research/app/build/outputs/apk/debug/app-debug.apk deliverables/android-diagnostics/
           printf 'Source commit: %s\nResearch diagnostic build; 144 HOLD. Not device-verified.\n' "$SOURCE_SHA" > deliverables/android-diagnostics/BUILD_INFO.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs deliverables/android-diagnostics/app-debug.apk > deliverables/android-diagnostics/SIGNER.txt
           cd deliverables/android-diagnostics
           sha256sum app-debug.apk > SHA256SUMS.txt
           cat BUILD_INFO.txt SHA256SUMS.txt

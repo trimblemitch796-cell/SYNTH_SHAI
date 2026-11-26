@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : Activity(), VoicePorts {
  private val review=ReviewedTurn()
+ private var continuation:ContinuedAnswer?=null
+ private lateinit var continueButton:Button
  private lateinit var speakButton: Button
  private lateinit var transcriptEdit: EditText
  private lateinit var confirmButton: Button
@@ -49,7 +51,7 @@ class MainActivity : Activity(), VoicePorts {
   super.onCreate(savedInstanceState)
   val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(24,24,24,24)}
   c.addView(TextView(this).apply{text="SYNTH SHAI";textSize=26f})
-  c.addView(TextView(this).apply{text="Voice research 0.9 • human-reviewed Qwen\nConfirm your transcript to generate locally. Read the reply, then approve it for speech. Human review is not an automated safety check. Each turn starts with a tap; no chat history is retained. Speech services still need airplane-mode testing."})
+  c.addView(TextView(this).apply{text="Voice research 0.9.1 • human-reviewed Qwen\nConfirm your transcript to generate locally. Read the reply, then approve it for speech. Human review is not an automated safety check. Each turn starts with a tap; no chat history is retained. Speech services still need airplane-mode testing."})
   status=TextView(this).apply{textSize=20f};c.addView(status)
   c.addView(TextView(this).apply{text="Recognized input";textSize=18f})
   recognized=TextView(this).apply{setTextIsSelectable(true);isSaveEnabled=false};c.addView(recognized)
@@ -64,6 +66,7 @@ class MainActivity : Activity(), VoicePorts {
   button("Start microphone / recognition test"){startVoice()}
   button("Finish phrase — request transcript"){finishPhrase()}
   confirmButton=Button(this).apply{text="Confirm transcript — generate Qwen reply";isEnabled=false;setOnClickListener{confirmTranscript()}};c.addView(confirmButton)
+  continueButton=Button(this).apply{text="Continue length-limited reply — review again before speech";isEnabled=false;setOnClickListener{continueReply()}};c.addView(continueButton)
   speakButton=Button(this).apply{text="Approve displayed reply — speak once";isEnabled=false;setOnClickListener{approveReply()}};c.addView(speakButton)
   button("Stop"){loop.stop("Stopped by human");draw()}
   button("Test fixed speech output (microphone off)"){fixedSpeech()}
@@ -76,12 +79,14 @@ class MainActivity : Activity(), VoicePorts {
   setContentView(ScrollView(this).apply{addView(c)});draw()
  }
  override fun onResume(){super.onResume();visible=true}
- override fun onPause(){visible=false;loop.stop("Left foreground");draw();super.onPause()}
+ override fun onPause(){visible=false;loop.stop("Left foreground");runCatching{LocalEngine.releaseModel()};draw();super.onPause()}
+ override fun onTrimMemory(level:Int){super.onTrimMemory(level);runCatching{LocalEngine.releaseModel()}}
  override fun onDestroy(){loop.stop();worker.shutdownNow();super.onDestroy()}
  override fun onActivityResult(request:Int,result:Int,data:Intent?){super.onActivityResult(request,result,data);if(request==12&&result==RESULT_OK){model=data?.data;details="Model selected; private copy verified before generation. Start recognition, then confirm the transcript.";draw()}}
  private fun draw(){
   if(!::status.isInitialized)return
   status.text="Human-reviewed research • ${review.phase}\nStage: $stage\nAutomated USHAI content safety is unverified"
+  continueButton.isEnabled=visible&&!working&&review.canSpeak(loop.token)&&continuation!=null
   confirmButton.isEnabled=visible&&!working&&review.canConfirm(loop.token)
   speakButton.isEnabled=visible&&!working&&review.canSpeak(loop.token)
   transcriptEdit.isEnabled=visible&&!working&&review.canConfirm(loop.token)
@@ -95,6 +100,7 @@ class MainActivity : Activity(), VoicePorts {
  private fun active(t:Long)=visible&&t==loop.token
  override fun stopAll(){
   review.clear()
+  continuation=null
   val oldProbe=microphoneProbe;microphoneProbe=null;handler.removeCallbacks(micTick);oldProbe?.stop();if(oldProbe!=null)details="Microphone check cancelled; capture stopped. No transcript produced."
   timing.cancel()
   panel.stopped(loop.reason)
@@ -202,7 +208,7 @@ class MainActivity : Activity(), VoicePorts {
      override fun onDone(id:String?){runOnUiThread{if(active(t)){handler.removeCallbacks(deadline);event("TTS playback completed (audibility needs phone check)");after()}}}
      override fun onError(id:String?){runOnUiThread{if(active(t)){loop.error(t,"TTS playback error");draw()}}}
     })
-    mark("Speech playback")
+    mark("Speech playback",(text.length*100L+30000L).coerceIn(30000L,330000L))
     if(tts!!.speak(text,TextToSpeech.QUEUE_FLUSH,null,t.toString())!=TextToSpeech.SUCCESS){loop.error(t,"TTS request failed");draw()}
    }catch(e:Exception){loop.error(t,"TTS setup: ${e.javaClass.simpleName}");draw()}
   }}
@@ -219,6 +225,7 @@ class MainActivity : Activity(), VoicePorts {
   if(!visible||working)return
   val t=loop.token
   val text=review.approve(t)?:return
+  continuation=null
   panel.reviewed(text)
   details="Human approved the displayed reply for one playback. Automated content safety remains unverified."
   prepareTts(t,text){
@@ -236,14 +243,55 @@ class MainActivity : Activity(), VoicePorts {
   panel.blocked(loop.reason);details="Typed message was not sent to Qwen. Arbitrary typed conversation requires the same substantive review as voice.";draw()
  }
  private fun probe(){if(working)return;loop.stop();if(model==null){details="Select the same Qwen GGUF from Downloads first; existing app is untouched";draw();return};details="Synthetic model probe only. No recognised speech is used; output is not safety-verified.";runModel(loop.token,"What is two plus two? Answer with one number.",true)}
- private fun runModel(t:Long,text:String,synthetic:Boolean){
+ private fun promptFor(text:String)="<|im_start|>system\nYou are SYNTH SHAI. Answer briefly.<|im_end|>\n<|im_start|>user\n"+text.replace("<|","< |")+"<|im_end|>\n<|im_start|>assistant\n"
+ private fun continueReply(){
+  if(!visible||working)return
+  val previous=continuation?:return
+  if(!review.continueReply(loop.token))return
+  continuation=null
+  runModel(loop.token,"",false,previous)
+ }
+ private fun runModel(t:Long,text:String,synthetic:Boolean,previous:ContinuedAnswer?=null){
   if(!synthetic&&review.phase!=ReviewedTurn.Phase.GENERATING)return
   val uri=model?:run{loop.error(t,"No model selected");draw();return}
   if(!active(t)||working)return
-  panel.pending();working=true;val stop=AtomicBoolean(false);cancellation=stop;mark("Preparing private model and generating",180000)
+  val basePrompt=previous?.prompt?:promptFor(text)
+  val prompt=previous?.nextPrompt()?:basePrompt
+  panel.pending();working=true;val stop=AtomicBoolean(false);cancellation=stop
+  mark("Preparing private model and generating — Stop remains available",600000)
+  val started=SystemClock.elapsedRealtime()
   worker.execute{
-   val result=runCatching{withVerifiedModel(this,uri,stop){path->LocalEngine.generate(path,("<|im_start|>system\nYou are SYNTH SHAI. Answer briefly.<|im_end|>\n<|im_start|>user\n"+text.replace("<|","< |")+"<|im_end|>\n<|im_start|>assistant\n").encodeToByteArray(),stop).decodeToString()}}
-   runOnUiThread{working=false;if(active(t)&&!stop.get()){handler.removeCallbacks(deadline);result.fold({response->if(synthetic){panel.synthetic(response);details="Fixed-prompt model test finished. This output is not content-reviewed and will not be spoken.";stage="Synthetic test complete; no speech playback"}else if(review.generated(t,response)){panel.unreviewed(response);details="Generation finished. Read the displayed reply, then approve it to speak once. Microphone off.";stage="Review Qwen reply — speech off"}else{loop.error(t,"Model returned an empty, oversized or stale reply")}},{error->loop.error(t,"Local model: ${error.javaClass.simpleName}: ${error.message?.take(300)}")})};draw()}
+   var verifiedAt=started
+   val result=runCatching{withVerifiedModel(this,uri,stop){path->
+    verifiedAt=SystemClock.elapsedRealtime()
+    GenerationResult.parse(LocalEngine.generate(path,prompt.encodeToByteArray(),stop))
+   }}
+   runOnUiThread{
+    working=false
+    if(active(t)&&!stop.get()){
+     handler.removeCallbacks(deadline)
+     result.fold({r->
+      if(r.reason=="stopped"){loop.error(t,"Generation stopped; no speech approved");draw();return@fold}
+      val response=(previous?.text?:"")+r.text
+      val chunks=(previous?.chunks?:0)+1
+      if(synthetic){
+       panel.synthetic(response);details="Fixed-prompt model test finished; no speech playback."
+       stage="Synthetic test complete"
+      }else if(review.generated(t,response)){
+       continuation=if(r.reason=="limit"&&chunks<3) ContinuedAnswer(basePrompt,null,response,chunks) else null
+       panel.unreviewed(response)
+       details="Read the full displayed reply before approving one playback. " + when {
+        continuation!=null -> "Token limit reached; Continue reply is available."
+        r.reason=="limit" -> "Continuation limit reached; answer may be incomplete. Ask a shorter question."
+        else -> "Model signalled end of reply."
+       }
+       stage="Review Qwen reply — speech off"
+      }else{loop.error(t,"Model returned an empty, oversized or stale reply")}
+      details+="\nLast chunk only: total=${SystemClock.elapsedRealtime()-started}ms; verify=${verifiedAt-started}ms; load=${r.loadMs}ms; setup=${r.setupMs}ms; prompt=${r.promptMs}ms; decode=${r.decodeMs}ms; tokens=${r.outputTokens}; cached=${r.reused}; finish=${r.reason}"
+     },{error->loop.error(t,"Local model: ${error.javaClass.simpleName}: ${error.message?.take(300)}")})
+    }
+    draw()
+   }
   }
  }
 }
