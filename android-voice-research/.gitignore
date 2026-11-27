@@ -1,0 +1,15 @@
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Local native/Kotlin intermediates and research delivery artifacts.
+.cxx/
+.kotlin/
+*.apk
+*.aab
+*.gguf
+*.jks
+*.keystore
